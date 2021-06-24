@@ -22,7 +22,7 @@ class Condition:
         self.__feeBid = feeBid  # 매수 수수료
         self.__feeAsk = feeAsk  # 매도 수수료
         self.__loseStopRate = loseStopRate  # 손절라인
-        self.__gainStopRat = gainStopRate  # 익절라인
+        self.__gainStopRate = gainStopRate  # 익절라인
 
     @property
     def k(self):
@@ -61,5 +61,5 @@ class Condition:
         return self.__loseStopRate
 
     @property
-    def gainStopRat(self):
-        return self.__gainStopRat
+    def gainStopRate(self):
+        return self.__gainStopRate

@@ -123,9 +123,13 @@ class TradeResult:
     def beforeClose(self, value):
         self.__beforeClose = value
 
-    # 투자금액
-    def getInvestmentAmount(self):
+    # 매수금액
+    def getBidAmount(self):
         return self.volume * self.bidPrice
+
+    # 매도금액
+    def getAskAmount(self):
+        return self.volume * self.askPrice
 
     # 실현 수익
     def getRealYield(self):
@@ -135,11 +139,11 @@ class TradeResult:
 
     # 투자 수익
     def getGains(self):
-        self.getInvestmentAmount * self.getRealYield()
+        return self.getBidAmount() * self.getRealYield()
 
     # 투자금 + 투자 수익 = 투자 결과
     def getInvestResult(self):
-        return self.getInvestmentAmount + self.getGains()
+        return self.getBidAmount() + self.getGains()
 
     # 현금 + 투자 결과
     # 투자금 + 투자 수익 - 수수료
@@ -173,7 +177,7 @@ class TradeResult:
                 askPrice=self.askPrice,
                 askReason=self.askReason,
                 realYield=self.getRealYield() * 100,
-                investmentAmount=self.getInvestmentAmount,
+                investmentAmount=self.getBidAmount(),
                 cash=self.cash,
                 gains=self.getGains(),
                 feePrice=self.feePrice,

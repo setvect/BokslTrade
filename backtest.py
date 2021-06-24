@@ -70,18 +70,20 @@ def isAskTime(time):
 cond = condition.Condition(
     k=0.5,
     investRatio=0.5,
-    fromDate=20190701,
-    toDate=20191231,
+    fromDate=20210112,
+    toDate=20210623,
     cash=10000000,
     tradeMargin=5,
-    feeBid=0.0005,
-    feeAsk=0.0005,
-    loseStopRate=0.002,
-    gainStopRate=0.02,
+    feeBid=0.00015,
+    feeAsk=0.00015,
+    loseStopRate=0.003,
+    gainStopRate=0.05,
 )
 
-# stockCodes = ["A069500", "A122630", "A114800", "A252670"]
-
+# A069500: KODEX 200
+# A122630: KODEX 레버리지
+# A114800: KODEX 인버스
+# A252670: KODEX 200선물인버스2X
 stockItemList = loadPriceDate("A069500")
 groupByDate = getGroupByDate(stockItemList)
 
@@ -107,6 +109,7 @@ for candle in stockItemList:
                 tradeHistory.append(currentTrade)
             beforeOhlc = getOhlc(groupByDate[currentDate])
             currentTrade = TradeResult()
+            currentTrade.cash = beforeTrade.getFinalResult()
             currentTrade.beforeClose = beforeOhlc["close"]
 
             # 매수 목표가 구하기
@@ -114,16 +117,16 @@ for candle in stockItemList:
                 (beforeOhlc["high"] - beforeOhlc["low"]) * cond.k
             )
 
-            print(
-                "{date} 매수 목표가 = 시초가: {open:,} + (전일고가: {high:,} * 전일저가: {low:,}) * K: {k:,} = {targetValue:,}".format(
-                    date=candle["date"],
-                    open=beforeOhlc["open"],
-                    high=beforeOhlc["high"],
-                    low=beforeOhlc["low"],
-                    k=cond.k,
-                    targetValue=targetValue,
-                )
-            )
+            # print(
+            #     "{date} 매수 목표가 = 시초가: {open:,} + (전일고가: {high:,} * 전일저가: {low:,}) * K: {k:,} = {targetValue:,}".format(
+            #         date=candle["date"],
+            #         open=beforeOhlc["open"],
+            #         high=beforeOhlc["high"],
+            #         low=beforeOhlc["low"],
+            #         k=cond.k,
+            #         targetValue=targetValue,
+            #     )
+            # )
             currentTrade.targetPrice = targetValue
             # print(
             #     "chage date:",
@@ -144,7 +147,7 @@ for candle in stockItemList:
 
     # 매수 했다면 매도 조건 체크
     if currentTrade.trade:
-        rate = currentTrade.bidPrice / candle["close"] - 1
+        rate = candle["close"] / currentTrade.bidPrice - 1
         currentTrade.highYield = max(
             currentTrade.highYield,
             rate,
@@ -172,6 +175,20 @@ for candle in stockItemList:
                 currentTrade.feePrice
                 + (currentTrade.askPrice * currentTrade.volume) * cond.feeAsk
             )
+            print(
+                "매도 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 매수금액: {:,}, 매도금액: {:,}, 매도이유:{}, 수수료: {:,.0f}, 수익률: {:.2f}% ".format(
+                    candle["date"],
+                    candle["time"],
+                    currentTrade.targetPrice,
+                    currentTrade.bidPrice,
+                    currentTrade.volume,
+                    currentTrade.getBidAmount(),
+                    currentTrade.getAskAmount(),
+                    currentTrade.askReason.name,
+                    currentTrade.feePrice,
+                    currentTrade.getRealYield() * 100,
+                )
+            )
 
     # 매수 체크
     elif isBidTime(candle["time"]):
@@ -186,14 +203,24 @@ for candle in stockItemList:
         # 매수 가능 수량
         currentTrade.volume = possible // candle["close"]
 
-        currentTrade.feePrice = currentTrade.getInvestmentAmount() * cond.feeBid
-        currentTrade.cash = (
-            beforeTrade.getFinalResult() - currentTrade.getInvestmentAmount()
-        )
+        currentTrade.feePrice = currentTrade.getBidAmount() * cond.feeBid
+        currentTrade.cash = beforeTrade.getFinalResult() - currentTrade.getBidAmount()
+        # print(
+        #     "매수 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
+        #         candle["date"],
+        #         candle["time"],
+        #         currentTrade.targetPrice,
+        #         currentTrade.bidPrice,
+        #         currentTrade.volume,
+        #         currentTrade.getBidAmount(),
+        #     )
+        # )
 
         currentTrade.trade = True
 
 if currentTrade is not None:
     tradeHistory.append(currentTrade)
+
+print("누적금액: {:,.0f}".format(currentTrade.getFinalResult()))
 
 print("끝.")

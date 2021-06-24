@@ -17,6 +17,7 @@ def getMarketPrice(objStockMst, code, dateFrom, dateTo):
     objStockMst.SetInputValue(4, 1)  # 요청 개수
     objStockMst.SetInputValue(5, fieldKeys)  # 필드
     objStockMst.SetInputValue(6, ord("m"))  # "D", "W", "M", "m", "T"
+    objStockMst.SetInputValue(9, ord("1"))  # 0: 무수정, 1: 수정주가
     objStockMst.BlockRequest()
     status = objStockMst.GetDibStatus()
     msg = objStockMst.GetDibMsg1()
@@ -30,8 +31,10 @@ def getMarketPrice(objStockMst, code, dateFrom, dateTo):
     marketPrice = []
 
     for i in range(cnt):
-        dict_item = {name: objStockMst.GetDataValue(
-            pos, i) for pos, name in zip(range(len(fieldNames)), fieldNames)}
+        dict_item = {
+            name: objStockMst.GetDataValue(pos, i)
+            for pos, name in zip(range(len(fieldNames)), fieldNames)
+        }
         for k, v in dict_item.items():
             dictChart[k].append(v)
 
@@ -41,7 +44,7 @@ def getMarketPrice(objStockMst, code, dateFrom, dateTo):
 
 objCpCybos = win32com.client.Dispatch("CpUtil.CpCybos")
 bConnect = objCpCybos.IsConnect
-if (bConnect == 0):
+if bConnect == 0:
     print("PLUS가 정상적으로 연결되지 않음. ")
     exit()
 
@@ -56,11 +59,15 @@ objStockMst = win32com.client.Dispatch("CpSysDib.StockChart")
 stockCodes = ["A069500", "A122630", "A114800", "A252670"]
 
 
+# marketPrice = getMarketPrice(objStockMst, "A069500", "20200706", "20200706")
+# for item in marketPrice:
+#     print(item.values())
+
 for code in stockCodes:
     toDate = datetime.datetime.now()
-    fromDate = toDate - datetime.timedelta(days = 365 * 2)
+    fromDate = toDate - datetime.timedelta(days=365 * 2)
 
-    with open("./data/"+code+".csv", "w", newline="") as f:
+    with open("./data/" + code + ".csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(fieldNames)
 
@@ -69,7 +76,7 @@ for code in stockCodes:
             weekday = fromDate.weekday()
             fromDate = fromDate + datetime.timedelta(days=1)
             # 토요일, 일요일 skip
-            if(weekday == 5 or weekday == 6):
+            if weekday == 5 or weekday == 6:
                 continue
 
             marketPrice = getMarketPrice(objStockMst, code, dateFormat, dateFormat)
@@ -77,6 +84,5 @@ for code in stockCodes:
                 w.writerow(item.values())
 
             print(dateFormat + " 수집")
-            time.sleep(0.2)
-
+            time.sleep(0.25)
 print("끝.")
