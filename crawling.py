@@ -1,20 +1,19 @@
 import csv
 import win32com.client
+import datetime
+import time
+
 fieldNames = ["date", "time", "open", "high", "low", "close", "volume"]
 
 
-def getMarketPrice(objStockMst, code):
+def getMarketPrice(objStockMst, code, dateFrom, dateTo):
     fieldKeys = [0, 1, 2, 3, 4, 5, 8]
     dictChart = {name: [] for name in fieldNames}
 
-    # A069500: KODEX 200
-    # A122630: KODEX 레버리지
-    # A114800: KODEX 인버스
-    # A252670: KODEX 200선물인버스2X
     objStockMst.SetInputValue(0, code)
     objStockMst.SetInputValue(1, ord("1"))  # 0: 개수, 1: 기간
-    objStockMst.SetInputValue(3, "20190624")  # 시작일
-    objStockMst.SetInputValue(2, "20190624")  # 종료일
+    objStockMst.SetInputValue(3, dateFrom)  # 시작일
+    objStockMst.SetInputValue(2, dateTo)  # 종료일
     objStockMst.SetInputValue(4, 1)  # 요청 개수
     objStockMst.SetInputValue(5, fieldKeys)  # 필드
     objStockMst.SetInputValue(6, ord("m"))  # "D", "W", "M", "m", "T"
@@ -28,7 +27,7 @@ def getMarketPrice(objStockMst, code):
         exit()
 
     cnt = objStockMst.GetHeaderValue(3)  # 수신개수
-    accList = []
+    marketPrice = []
 
     for i in range(cnt):
         dict_item = {name: objStockMst.GetDataValue(
@@ -36,8 +35,8 @@ def getMarketPrice(objStockMst, code):
         for k, v in dict_item.items():
             dictChart[k].append(v)
 
-        accList.append(dict_item)
-    return accList
+        marketPrice.append(dict_item)
+    return reversed(marketPrice)
 
 
 objCpCybos = win32com.client.Dispatch("CpUtil.CpCybos")
@@ -50,15 +49,34 @@ if (bConnect == 0):
 # 현재가 객체 구하기
 objStockMst = win32com.client.Dispatch("CpSysDib.StockChart")
 
-code = "A069500"
-accList = getMarketPrice(objStockMst, code)
+# A069500: KODEX 200
+# A122630: KODEX 레버리지
+# A114800: KODEX 인버스
+# A252670: KODEX 200선물인버스2X
+stockCodes = ["A069500", "A122630", "A114800", "A252670"]
 
-with open("./data/"+code+".csv", "w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow(fieldNames)
-    for item in accList:
-        w.writerow(item.values())
 
-# print(accList)
+for code in stockCodes:
+    toDate = datetime.datetime.now()
+    fromDate = toDate - datetime.timedelta(days = 365 * 2)
+
+    with open("./data/"+code+".csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(fieldNames)
+
+        while fromDate <= toDate:
+            dateFormat = fromDate.strftime("%Y%m%d")
+            weekday = fromDate.weekday()
+            fromDate = fromDate + datetime.timedelta(days=1)
+            # 토요일, 일요일 skip
+            if(weekday == 5 or weekday == 6):
+                continue
+
+            marketPrice = getMarketPrice(objStockMst, code, dateFormat, dateFormat)
+            for item in marketPrice:
+                w.writerow(item.values())
+
+            print(dateFormat + " 수집")
+            time.sleep(0.2)
 
 print("끝.")
