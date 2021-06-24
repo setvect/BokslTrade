@@ -16,7 +16,7 @@ class TradeResult:
         trade=False,
         bidPrice=0,
         askPrice=0,
-        investmentAmount=0,
+        volume=0,
         cash=0,
         feePrice=0,
         highYield=0,
@@ -28,7 +28,7 @@ class TradeResult:
         self.__trade = trade  # 매매 여부
         self.__bidPrice = bidPrice  # 매수 체결 가격
         self.__askPrice = askPrice  # 매도 체결 가격
-        self.__investmentAmount = investmentAmount  # 투자금
+        self.__volume = volume  # 주식 수량
         self.__cash = cash  # 현금
         self.__feePrice = feePrice  # 매매 수수료
         self.__highYield = highYield  # 최고 수익률
@@ -76,12 +76,12 @@ class TradeResult:
         self.__askPrice = value
 
     @property
-    def investmentAmount(self):
-        return self.__investmentAmount
+    def volume(self):
+        return self.__volume
 
-    @investmentAmount.setter
-    def investmentAmount(self, value):
-        self.__investmentAmount = value
+    @volume.setter
+    def volume(self, value):
+        self.__volume = value
 
     @property
     def cash(self):
@@ -123,6 +123,10 @@ class TradeResult:
     def beforeClose(self, value):
         self.__beforeClose = value
 
+    # 투자금액
+    def getInvestmentAmount(self):
+        return self.volume * self.bidPrice
+
     # 실현 수익
     def getRealYield(self):
         if self.trade:
@@ -131,11 +135,11 @@ class TradeResult:
 
     # 투자 수익
     def getGains(self):
-        self.investmentAmount * self.getRealYield()
+        self.getInvestmentAmount * self.getRealYield()
 
     # 투자금 + 투자 수익 = 투자 결과
     def getInvestResult(self):
-        return self.investmentAmount + self.getGains()
+        return self.getInvestmentAmount + self.getGains()
 
     # 현금 + 투자 결과
     # 투자금 + 투자 수익 - 수수료
@@ -151,7 +155,7 @@ class TradeResult:
         return (
             "날짜: {date}, 시가: {open:,}, 고가:{high:,}, 저가:{low:,}, "
             + "종가:{close:,}, 직전 종가:{beforeClose,}, 단위 수익률: {candleYield:0,.2f}%, 매수 목표가: {targetPrice:,}, 매매여부: {trade}, "
-            + "매수 체결 가격: {bidPrice:,}, 최고수익률: {highYield:0,.2f}%, 매도 체결 가격: {askPrice:,}, 매도 이유: {askReason}, "
+            + "매수 체결 가격: {bidPrice:,}, 매수 수량: {volume:,} ,최고수익률: {highYield:0,.2f}%, 매도 체결 가격: {askPrice:,}, 매도 이유: {askReason}, "
             + "실현 수익률: {realYield:0,.2f}%, 투자금: {investmentAmount:,}, 현금: {cash:,}, 투자 수익: {gains:,}, 수수료: {feePrice:,}, "
             + "투자 결과: {investResult:,}, 현금 + 투자결과 - 수수료: {finalResult:,}".format(
                 date=self.candle["date"],
@@ -164,11 +168,12 @@ class TradeResult:
                 targetPrice=self.targetPrice,
                 trade=self.trade,
                 bidPrice=self.bidPrice,
+                volume=self.volume,
                 highYield=self.highYield * 100,
                 askPrice=self.askPrice,
                 askReason=self.askReason,
                 realYield=self.getRealYield() * 100,
-                investmentAmount=self.investmentAmount,
+                investmentAmount=self.getInvestmentAmount,
                 cash=self.cash,
                 gains=self.getGains(),
                 feePrice=self.feePrice,
