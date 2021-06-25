@@ -130,6 +130,10 @@ def backtestVbs(cond):
                 rate,
             )
 
+            if rate > cond.gainStopRate:
+                currentTrade.isTrailing = True
+
+            # 매도 여부 체크
             if currentTrade.askPrice != 0:
                 continue
 
@@ -142,8 +146,10 @@ def backtestVbs(cond):
             elif -rate > cond.loseStopRate:
                 askReason = AskReason.LOSS
             # 익절 체크
-            elif rate > cond.gainStopRate:
-                askReason = AskReason.GAIN
+            elif currentTrade.isTrailing:
+                # 트레일링 스탑 하락 검증 판단
+                if rate < currentTrade.highYield - cond.trailingStopRate:
+                    askReason = AskReason.GAIN
 
             if askReason is not None:
                 currentTrade.askReason = askReason
@@ -229,6 +235,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
         )
     )
     worksheet = workbook.add_worksheet("result")
+    worksheet.freeze_panes(1, 0)
     worksheet.set_row(
         0, None, workbook.add_format({"bold": True, "align": "center", "border": 1})
     )
@@ -358,6 +365,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
 def makeAnalysisExcel(analysis):
     workbook = xlsxwriter.Workbook("backtest_result/백테스팅결과.xlsx")
     worksheet = workbook.add_worksheet("result")
+    worksheet.freeze_panes(1, 0)
     style1 = workbook.add_format({"num_format": "#,###", "border": 1})
     style2 = workbook.add_format({"num_format": "0.000%", "border": 1})
     style3 = workbook.add_format({"border": 1})

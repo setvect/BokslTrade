@@ -19,7 +19,7 @@ def backtestRange(fromDate, toDate, comment):
         tradeMargin=5,
         feeBid=0.00015,
         feeAsk=0.00015,
-        loseStopRate=0.01,
+        loseStopRate=0.002,
         gainStopRate=0.05,
         trailingStopRate=0.001,
         comment=comment,
@@ -32,11 +32,11 @@ def backtestRange(fromDate, toDate, comment):
 
 
 rangeList = [
-    (20200120, 20200319, "하락장"),
+    # (20200120, 20200319, "하락장"),
     (20200120, 20200805, "하락후 복귀"),
-    (20200319, 20210111, "상승장"),
-    (20210112, 20210623, "횡보장"),
-    (20190625, 20210623, "2년기간"),
+    # (20200319, 20210111, "상승장"),
+    # (20210112, 20210623, "횡보장"),
+    # (20190625, 20210623, "2년기간"),
 ]
 
 resultList = []
