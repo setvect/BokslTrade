@@ -12,6 +12,7 @@ class Condition:
         feeAsk,
         loseStopRate,
         gainStopRate,
+        trailingStopRate,
     ):
         self.__k = k  #  변동성 돌파 판단 비율
         self.__investRatio = investRatio  # 총 현금을 기준으로 투자 비율. 1은 전액, 0.5은 50% 투자
@@ -23,6 +24,7 @@ class Condition:
         self.__feeAsk = feeAsk  # 매도 수수료
         self.__loseStopRate = loseStopRate  # 손절라인
         self.__gainStopRate = gainStopRate  # 익절라인
+        self.__trailingStopRate = trailingStopRate  # 트레일링 스탑 하락 매도률
 
     @property
     def k(self):
@@ -63,3 +65,7 @@ class Condition:
     @property
     def gainStopRate(self):
         return self.__gainStopRate
+
+    @property
+    def trailingStopRate(self):
+        return self.__trailingStopRate

@@ -13,7 +13,7 @@ class TradeResult:
         self,
         candle={},
         targetPrice=0,
-        trade=False,
+        isTrade=False,
         bidPrice=0,
         askPrice=0,
         volume=0,
@@ -25,7 +25,7 @@ class TradeResult:
     ):
         self.__candle = candle  # 매수 시점 캔들
         self.__targetPrice = targetPrice  # 매매주기 목표가
-        self.__trade = trade  # 매매 여부
+        self.__isTrade = isTrade  # 매매 여부
         self.__bidPrice = bidPrice  # 매수 체결 가격
         self.__askPrice = askPrice  # 매도 체결 가격
         self.__volume = volume  # 주식 수량
@@ -52,12 +52,12 @@ class TradeResult:
         self.__targetPrice = value
 
     @property
-    def trade(self):
-        return self.__trade
+    def isTrade(self):
+        return self.__isTrade
 
-    @trade.setter
-    def trade(self, value):
-        self.__trade = value
+    @isTrade.setter
+    def isTrade(self, value):
+        self.__isTrade = value
 
     @property
     def bidPrice(self):
@@ -133,7 +133,7 @@ class TradeResult:
 
     # 실현 수익
     def getRealYield(self):
-        if self.trade:
+        if self.isTrade:
             return (self.askPrice / self.bidPrice) - 1
         return 0
 
@@ -157,31 +157,31 @@ class TradeResult:
 
     def toString(self):
         return (
-            "날짜: {date}, 시가: {open:,}, 고가:{high:,}, 저가:{low:,}, "
-            + "종가:{close:,}, 직전 종가:{beforeClose,}, 단위 수익률: {candleYield:0,.2f}%, 매수 목표가: {targetPrice:,}, 매매여부: {trade}, "
-            + "매수 체결 가격: {bidPrice:,}, 매수 수량: {volume:,} ,최고수익률: {highYield:0,.2f}%, 매도 체결 가격: {askPrice:,}, 매도 이유: {askReason}, "
-            + "실현 수익률: {realYield:0,.2f}%, 투자금: {investmentAmount:,}, 현금: {cash:,}, 투자 수익: {gains:,}, 수수료: {feePrice:,}, "
-            + "투자 결과: {investResult:,}, 현금 + 투자결과 - 수수료: {finalResult:,}".format(
-                date=self.candle["date"],
-                open=self.candle["open"],
-                high=self.candle["high"],
-                low=self.candle["low"],
-                close=self.candle["close"],
-                beforeClose=self.beforeClose,
-                candleYield=self.getCandleYield() * 100,
-                targetPrice=self.targetPrice,
-                trade=self.trade,
-                bidPrice=self.bidPrice,
-                volume=self.volume,
-                highYield=self.highYield * 100,
-                askPrice=self.askPrice,
-                askReason=self.askReason,
-                realYield=self.getRealYield() * 100,
-                investmentAmount=self.getBidAmount(),
-                cash=self.cash,
-                gains=self.getGains(),
-                feePrice=self.feePrice,
-                investResult=self.getInvestResult(),
-                finalResult=self.getFinalResult(),
-            )
+            "날짜: {date}, 시가: {open:,}, 고가:{high:,}, 저가: {low:,}, "
+            + "종가: {close:,}, 직전 종가: {beforeClose:,}, 단위 수익률: {candleYield:0,.2f}%, 매수 목표가: {targetPrice:,}, 매매여부: {isTrade}, "
+            + "매수 체결 가격: {bidPrice:,}, 매수 수량: {volume:,}, 최고수익률: {highYield:0,.2f}%, 매도 체결 가격: {askPrice:,}, 매도 이유: {askReason}, "
+            + "실현 수익률: {realYield:,.2f}%, 투자금: {investmentAmount:,}, 현금: {cash:,.0f}, 투자 수익: {gains:,.0f}, 수수료: {feePrice:,.0f}, "
+            + "투자 결과: {investResult:,.0f}, 현금+투자결과-수수료: {finalResult:,.0f}"
+        ).format(
+            date=self.candle["date"],
+            open=self.candle["open"],
+            high=self.candle["high"],
+            low=self.candle["low"],
+            close=self.candle["close"],
+            beforeClose=self.beforeClose,
+            candleYield=self.getCandleYield() * 100,
+            targetPrice=self.targetPrice,
+            isTrade=self.isTrade,
+            bidPrice=self.bidPrice,
+            volume=self.volume,
+            highYield=self.highYield * 100,
+            askPrice=self.askPrice,
+            askReason=self.askReason.name,
+            realYield=self.getRealYield() * 100,
+            investmentAmount=self.getBidAmount(),
+            cash=self.cash,
+            gains=self.getGains(),
+            feePrice=self.feePrice,
+            investResult=self.getInvestResult(),
+            finalResult=self.getFinalResult(),
         )

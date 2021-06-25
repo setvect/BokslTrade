@@ -41,6 +41,7 @@ def getGroupByDate(stockItemList):
 
 # 그룹 기준 OHLC 구하기
 def getOhlc(priceList):
+    date = priceList[0]["date"]
     openPrice = priceList[0]["open"]
     maxHighPrice = priceList[0]["high"]
     minLowPrice = priceList[0]["low"]
@@ -50,6 +51,7 @@ def getOhlc(priceList):
         maxHighPrice = max(maxHighPrice, item["high"])
         minLowPrice = min(minLowPrice, item["low"])
     return {
+        "date": date,
         "open": openPrice,
         "high": maxHighPrice,
         "low": minLowPrice,
@@ -67,6 +69,135 @@ def isAskTime(time):
     return 1510 < time < 1520
 
 
+def backtestVbs(stockItemList, cond):
+    groupByDate = getGroupByDate(stockItemList)
+
+    # 일단위 OHLC 구함
+    for dateKey in groupByDate:
+        ohlc = getOhlc(groupByDate[dateKey])
+
+    tradeHistory = []
+
+    currentDate = None
+    beforeOhlc = None
+
+    targetValue = sys.maxsize
+
+    beforeTrade = TradeResult(cash=cond.cash)
+    currentTrade = None
+
+    for candle in stockItemList:
+        if currentDate != candle["date"]:
+            if currentDate is not None:
+                if currentTrade is not None:
+                    beforeTrade = currentTrade
+                    tradeHistory.append(currentTrade)
+                beforeOhlc = getOhlc(groupByDate[currentDate])
+                currentTrade = TradeResult()
+                currentTrade.cash = beforeTrade.getFinalResult()
+                currentTrade.beforeClose = beforeOhlc["close"]
+                currentTrade.candle = candle
+
+                # 매수 목표가 구하기
+                targetValue = candle["open"] + int(
+                    (beforeOhlc["high"] - beforeOhlc["low"]) * cond.k
+                )
+
+                # print(
+                #     "{date} 매수 목표가 = 시초가: {open:,} + (전일고가: {high:,} * 전일저가: {low:,}) * K: {k:,} = {targetValue:,}".format(
+                #         date=candle["date"],
+                #         open=beforeOhlc["open"],
+                #         high=beforeOhlc["high"],
+                #         low=beforeOhlc["low"],
+                #         k=cond.k,
+                #         targetValue=targetValue,
+                #     )
+                # )
+                currentTrade.targetPrice = targetValue
+            # print(
+            #     "chage date:",
+            #     currentDate,
+            #     ", targetValue:",
+            #     format(targetValue, ","),
+            # )
+
+            currentDate = candle["date"]
+
+        # 직전 캔들 데이터가 없으면 skip
+        if beforeOhlc is None:
+            continue
+
+        # 백테스팅 대상 범위가 아니면 skip
+        if currentDate < cond.fromDate or currentDate > cond.toDate:
+            continue
+
+        # 매수 했다면 매도 조건 체크
+        if currentTrade.isTrade:
+            rate = candle["close"] / currentTrade.bidPrice - 1
+            currentTrade.highYield = max(
+                currentTrade.highYield,
+                rate,
+            )
+
+            if currentTrade.askPrice != 0:
+                continue
+
+            askReason = None
+
+            # 매도 시간 경과
+            if isAskTime(candle["time"]):
+                askReason = AskReason.TIME
+            # 손절 체크
+            elif -rate > cond.loseStopRate:
+                askReason = AskReason.LOSS
+            # 익절 체크
+            elif rate > cond.gainStopRate:
+                askReason = AskReason.GAIN
+
+            if askReason is not None:
+                currentTrade.askReason = askReason
+                currentTrade.askPrice = candle["close"] - cond.tradeMargin
+                currentTrade.feePrice = (
+                    currentTrade.feePrice
+                    + (currentTrade.askPrice * currentTrade.volume) * cond.feeAsk
+                )
+
+        # 매수 체크
+        elif isBidTime(candle["time"]):
+            if currentTrade.targetPrice > candle["close"]:
+                continue
+
+            currentTrade.candle = getOhlc(groupByDate[currentDate])
+            currentTrade.bidPrice = candle["close"] + cond.tradeMargin
+
+            # 매수 가능 금액
+            possible = int(beforeTrade.getFinalResult() * cond.investRatio)
+            # 매수 가능 수량
+            currentTrade.volume = possible // currentTrade.bidPrice
+
+            currentTrade.feePrice = currentTrade.getBidAmount() * cond.feeBid
+            currentTrade.cash = (
+                beforeTrade.getFinalResult() - currentTrade.getBidAmount()
+            )
+            # print(
+            #     "매수 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
+            #         candle["date"],
+            #         candle["time"],
+            #         currentTrade.targetPrice,
+            #         currentTrade.bidPrice,
+            #         currentTrade.volume,
+            #         currentTrade.getBidAmount(),
+            #     )
+            # )
+
+            currentTrade.isTrade = True
+
+    if currentTrade is not None:
+        tradeHistory.append(currentTrade)
+
+    return tradeHistory
+
+
 cond = condition.Condition(
     k=0.5,
     investRatio=0.5,
@@ -78,6 +209,7 @@ cond = condition.Condition(
     feeAsk=0.00015,
     loseStopRate=0.003,
     gainStopRate=0.05,
+    trailingStopRate=0.001,
 )
 
 # A069500: KODEX 200
@@ -85,142 +217,12 @@ cond = condition.Condition(
 # A114800: KODEX 인버스
 # A252670: KODEX 200선물인버스2X
 stockItemList = loadPriceDate("A069500")
-groupByDate = getGroupByDate(stockItemList)
+tradeHistory = backtestVbs(stockItemList, cond)
 
-# 일단위 OHLC 구함
-for dateKey in groupByDate:
-    ohlc = getOhlc(groupByDate[dateKey])
-    # print(dateKey + ": " + str(ohlc))
-
-currentDate = None
-beforeOhlc = None
-
-targetValue = sys.maxsize
-tradeHistory = []
-
-beforeTrade = TradeResult(cash=cond.cash)
-currentTrade = None
-
-for candle in stockItemList:
-    if currentDate != candle["date"]:
-        if currentDate is not None:
-            if currentTrade is not None:
-                beforeTrade = currentTrade
-                tradeHistory.append(currentTrade)
-            beforeOhlc = getOhlc(groupByDate[currentDate])
-            currentTrade = TradeResult()
-            currentTrade.cash = beforeTrade.getFinalResult()
-            currentTrade.beforeClose = beforeOhlc["close"]
-
-            # 매수 목표가 구하기
-            targetValue = candle["open"] + int(
-                (beforeOhlc["high"] - beforeOhlc["low"]) * cond.k
-            )
-
-            # print(
-            #     "{date} 매수 목표가 = 시초가: {open:,} + (전일고가: {high:,} * 전일저가: {low:,}) * K: {k:,} = {targetValue:,}".format(
-            #         date=candle["date"],
-            #         open=beforeOhlc["open"],
-            #         high=beforeOhlc["high"],
-            #         low=beforeOhlc["low"],
-            #         k=cond.k,
-            #         targetValue=targetValue,
-            #     )
-            # )
-            currentTrade.targetPrice = targetValue
-            # print(
-            #     "chage date:",
-            #     currentDate,
-            #     ", targetValue:",
-            #     format(targetValue, ","),
-            # )
-
-        currentDate = candle["date"]
-
-    # 직전 캔들 데이터가 없으면 skip
-    if beforeOhlc is None:
+for trade in tradeHistory:
+    if not trade.isTrade:
         continue
 
-    # 백테스팅 대상 범위가 아니면 skip
-    if currentDate < cond.fromDate or currentDate > cond.toDate:
-        continue
-
-    # 매수 했다면 매도 조건 체크
-    if currentTrade.trade:
-        rate = candle["close"] / currentTrade.bidPrice - 1
-        currentTrade.highYield = max(
-            currentTrade.highYield,
-            rate,
-        )
-
-        if currentTrade.askPrice != 0:
-            continue
-
-        askReason = None
-
-        # 매도 시간 경과
-        if isAskTime(candle["time"]):
-            askReason = AskReason.TIME
-        # 손절 체크
-        elif -rate > cond.loseStopRate:
-            askReason = AskReason.LOSS
-        # 익절 체크
-        elif rate > cond.gainStopRate:
-            askReason = AskReason.GAIN
-
-        if askReason is not None:
-            currentTrade.askReason = askReason
-            currentTrade.askPrice = candle["close"]
-            currentTrade.feePrice = (
-                currentTrade.feePrice
-                + (currentTrade.askPrice * currentTrade.volume) * cond.feeAsk
-            )
-            print(
-                "매도 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 매수금액: {:,}, 매도금액: {:,}, 매도이유:{}, 수수료: {:,.0f}, 수익률: {:.2f}% ".format(
-                    candle["date"],
-                    candle["time"],
-                    currentTrade.targetPrice,
-                    currentTrade.bidPrice,
-                    currentTrade.volume,
-                    currentTrade.getBidAmount(),
-                    currentTrade.getAskAmount(),
-                    currentTrade.askReason.name,
-                    currentTrade.feePrice,
-                    currentTrade.getRealYield() * 100,
-                )
-            )
-
-    # 매수 체크
-    elif isBidTime(candle["time"]):
-        if currentTrade.targetPrice > candle["close"]:
-            continue
-
-        currentTrade.candle = getOhlc(groupByDate[currentDate])
-        currentTrade.bidPrice = candle["close"]
-
-        # 매수 가능 금액
-        possible = int(beforeTrade.getFinalResult() * cond.investRatio)
-        # 매수 가능 수량
-        currentTrade.volume = possible // candle["close"]
-
-        currentTrade.feePrice = currentTrade.getBidAmount() * cond.feeBid
-        currentTrade.cash = beforeTrade.getFinalResult() - currentTrade.getBidAmount()
-        # print(
-        #     "매수 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
-        #         candle["date"],
-        #         candle["time"],
-        #         currentTrade.targetPrice,
-        #         currentTrade.bidPrice,
-        #         currentTrade.volume,
-        #         currentTrade.getBidAmount(),
-        #     )
-        # )
-
-        currentTrade.trade = True
-
-if currentTrade is not None:
-    tradeHistory.append(currentTrade)
-
-print("누적금액: {:,.0f}".format(currentTrade.getFinalResult()))
+    print(trade.toString() + "\n")
 
 print("끝.")
