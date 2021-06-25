@@ -1,6 +1,7 @@
 import csv
 import sys
 import xlsxwriter
+import util
 import condition
 from trade_result import AskReason, TradeResult
 
@@ -19,7 +20,6 @@ def loadPriceDate(code):
             item["close"] = int(item["close"])
             item["volume"] = int(item["volume"])
             stockItemList.append(item)
-    print(code + " " + format(len(stockItemList), ","))
     return stockItemList
 
 
@@ -182,6 +182,121 @@ def backtestVbs(stockItemList, cond):
     return tradeHistory
 
 
+# 백테스팅 분석
+def backtestAnalysis(cond, tradeHistory):
+    # 주식 수익률, MDD
+    stockPriceList = [trade.candle["close"] for trade in tradeHistory]
+    stockPriceList.insert(0, tradeHistory[0].candle["open"])
+    stockYield = util.getYield(stockPriceList)
+    stockMdd = util.getMdd(stockPriceList)
+
+    # 투자 수익률, MDD
+    realPriceList = [trade.getFinalResult() for trade in tradeHistory]
+    realPriceList.insert(0, cond.cash)
+    realYield = util.getYield(realPriceList)
+    realMdd = util.getMdd(realPriceList)
+
+    result = {
+        "stockYield": stockYield,
+        "stockMdd": stockMdd,
+        "realYield": realYield,
+        "realMdd": realMdd,
+    }
+    return result
+
+
+# 백테스팅 결과 엑셀 파일 만들기
+def makeExcel(tradeHistory, cond):
+    workbook = xlsxwriter.Workbook(
+        "backtest_result/{}_{}.xlsx".format(cond.fromDate, cond.toDate)
+    )
+    worksheet = workbook.add_worksheet("result")
+    worksheet.set_row(
+        0, None, workbook.add_format({"bold": True, "align": "center", "border": 1})
+    )
+
+    style1 = workbook.add_format({"num_format": "#,###", "border": 1})
+    worksheet.set_column("B:F", None, style1)
+    worksheet.set_column("I:I", None, style1)
+    worksheet.set_column("K:K", None, style1)
+    worksheet.set_column("M:M", None, style1)
+    worksheet.set_column("O:O", None, style1)
+    worksheet.set_column("R:W", None, style1)
+
+    style2 = workbook.add_format({"num_format": "0.00%", "border": 1})
+    worksheet.set_column("G:G", None, style2)
+    worksheet.set_column("H:H", None, style2)
+    worksheet.set_column("N:N", None, style2)
+    worksheet.set_column("Q:Q", None, style2)
+
+    style3 = workbook.add_format({"border": 1})
+    worksheet.set_column("A:A", None, style3)
+    worksheet.set_column("J:J", None, style3)
+    worksheet.set_column("L:L", None, style3)
+    worksheet.set_column("P:P", None, style3)
+
+    bg1 = workbook.add_format({"bg_color": "#e1e4ed"})
+    bg2 = workbook.add_format({"bg_color": "#dbe1f5"})
+    bg3 = workbook.add_format({"bg_color": "#fde9d9"})
+
+    header = [
+        "날짜",
+        "시가",
+        "고가",
+        "저가",
+        "종가",
+        "직전 종가",
+        "당일 수익률",
+        "장중 수익률",
+        "매수 목표가",
+        "매매여부",
+        "매수 체결 가격",
+        "트레일링 스탑 진입 여부",
+        "매수 수량",
+        "최고수익률",
+        "매도 체결 가격",
+        "매도 이유",
+        "실현 수익률",
+        "투자금",
+        "현금",
+        "투자 수익",
+        "수수료",
+        "투자 결과",
+        "현금+투자결과-수수료",
+    ]
+    for idx, name in enumerate(header):
+        worksheet.write(0, idx, name)
+
+    for idx, trade in enumerate(tradeHistory, 1):
+        worksheet.write(idx, 0, trade.candle["date"])
+        worksheet.write(idx, 1, trade.candle["open"])
+        worksheet.write(idx, 2, trade.candle["high"])
+        worksheet.write(idx, 3, trade.candle["low"])
+        worksheet.write(idx, 4, trade.candle["close"])
+        worksheet.write(idx, 5, trade.beforeClose)
+        worksheet.write(idx, 6, trade.getCandleYield())
+        worksheet.write(idx, 7, trade.getMarketYield())
+        worksheet.write(idx, 8, trade.targetPrice)
+        worksheet.write(idx, 9, trade.isTrade)
+        worksheet.write(idx, 10, trade.bidPrice)
+        worksheet.write(idx, 11, trade.isTrailing)
+        worksheet.write(idx, 12, trade.volume)
+        worksheet.write(idx, 13, trade.highYield)
+        worksheet.write(idx, 14, trade.askPrice)
+        worksheet.write(
+            idx, 15, trade.askReason.name if trade.askReason is not None else "-"
+        )
+        worksheet.write(idx, 16, trade.getRealYield())
+        worksheet.write(idx, 17, trade.getBidAmount())
+        worksheet.write(idx, 18, trade.cash)
+        worksheet.write(idx, 19, trade.getGains())
+        worksheet.write(idx, 20, trade.feePrice)
+        worksheet.write(idx, 21, trade.getInvestResult())
+        worksheet.write(idx, 22, trade.getFinalResult())
+
+    workbook.close()
+
+
 cond = condition.Condition(
     k=0.5,
     investRatio=0.5,
@@ -202,94 +317,13 @@ cond = condition.Condition(
 # A252670: KODEX 200선물인버스2X
 stockItemList = loadPriceDate("A069500")
 tradeHistory = backtestVbs(stockItemList, cond)
+result = backtestAnalysis(cond, tradeHistory)
 
-workbook = xlsxwriter.Workbook(
-    "backtest_result/{}_{}.xlsx".format(cond.fromDate, cond.toDate)
-)
-worksheet = workbook.add_worksheet("result")
-worksheet.set_row(
-    0, None, workbook.add_format({"bold": True, "align": "center", "border": 1})
-)
-
-style1 = workbook.add_format({"num_format": "#,###", "border": 1})
-worksheet.set_column("B:F", None, style1)
-worksheet.set_column("I:I", None, style1)
-worksheet.set_column("K:K", None, style1)
-worksheet.set_column("M:M", None, style1)
-worksheet.set_column("O:O", None, style1)
-worksheet.set_column("R:W", None, style1)
-
-style2 = workbook.add_format({"num_format": "0.00%", "border": 1})
-worksheet.set_column("G:G", None, style2)
-worksheet.set_column("H:H", None, style2)
-worksheet.set_column("N:N", None, style2)
-worksheet.set_column("Q:Q", None, style2)
-
-style3 = workbook.add_format({"border": 1})
-worksheet.set_column("A:A", None, style3)
-worksheet.set_column("J:J", None, style3)
-worksheet.set_column("L:L", None, style3)
-worksheet.set_column("P:P", None, style3)
-
-bg1 = workbook.add_format({"bg_color": "#e1e4ed"})
-bg2 = workbook.add_format({"bg_color": "#dbe1f5"})
-bg3 = workbook.add_format({"bg_color": "#fde9d9"})
-
-header = [
-    "날짜",
-    "시가",
-    "고가",
-    "저가",
-    "종가",
-    "직전 종가",
-    "당일 수익률",
-    "장중 수익률",
-    "매수 목표가",
-    "매매여부",
-    "매수 체결 가격",
-    "트레일링 스탑 진입 여부",
-    "매수 수량",
-    "최고수익률",
-    "매도 체결 가격",
-    "매도 이유",
-    "실현 수익률",
-    "투자금",
-    "현금",
-    "투자 수익",
-    "수수료",
-    "투자 결과",
-    "현금+투자결과-수수료",
-]
-for idx, name in enumerate(header):
-    worksheet.write(0, idx, name)
-
-for idx, trade in enumerate(tradeHistory, 1):
-    print(trade.getMarketYield())
-    worksheet.write(idx, 0, trade.candle["date"])
-    worksheet.write(idx, 1, trade.candle["open"])
-    worksheet.write(idx, 2, trade.candle["high"])
-    worksheet.write(idx, 3, trade.candle["low"])
-    worksheet.write(idx, 4, trade.candle["close"])
-    worksheet.write(idx, 5, trade.beforeClose)
-    worksheet.write(idx, 6, trade.getCandleYield())
-    worksheet.write(idx, 7, trade.getMarketYield())
-    worksheet.write(idx, 8, trade.targetPrice)
-    worksheet.write(idx, 9, trade.isTrade)
-    worksheet.write(idx, 10, trade.bidPrice)
-    worksheet.write(idx, 11, trade.isTrailing)
-    worksheet.write(idx, 12, trade.volume)
-    worksheet.write(idx, 13, trade.highYield)
-    worksheet.write(idx, 14, trade.askPrice)
-    worksheet.write(
-        idx, 15, trade.askReason.name if trade.askReason is not None else "-"
+print(
+    "주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
+        result["stockYield"], result["stockMdd"], result["realYield"], result["realMdd"]
     )
-    worksheet.write(idx, 16, trade.getRealYield())
-    worksheet.write(idx, 17, trade.getBidAmount())
-    worksheet.write(idx, 18, trade.cash)
-    worksheet.write(idx, 19, trade.getGains())
-    worksheet.write(idx, 20, trade.feePrice)
-    worksheet.write(idx, 21, trade.getInvestResult())
-    worksheet.write(idx, 22, trade.getFinalResult())
+)
 
-workbook.close()
+makeExcel(tradeHistory, cond)
 print("끝.")
