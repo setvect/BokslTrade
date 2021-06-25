@@ -73,10 +73,6 @@ def isAskTime(time):
 
 
 def backtestVbs(cond):
-    # A069500: KODEX 200
-    # A122630: KODEX 레버리지
-    # A114800: KODEX 인버스
-    # A252670: KODEX 200선물인버스2X
     stockItemList = loadPriceDate(cond.targetStock[0].code)
 
     groupByDate = getGroupByDate(stockItemList)
@@ -120,7 +116,9 @@ def backtestVbs(cond):
             continue
 
         # 백테스팅 대상 범위가 아니면 skip
-        if currentDate < cond.fromDate or currentDate > cond.toDate:
+        isTestRange = currentDate < cond.fromDate or currentDate > cond.toDate
+
+        if isTestRange:
             continue
 
         # 매수 했다면 매도 조건 체크
@@ -184,9 +182,6 @@ def backtestVbs(cond):
 
             currentTrade.isTrade = True
 
-    if currentTrade is not None:
-        tradeHistory.append(currentTrade)
-
     return tradeHistory
 
 
@@ -211,15 +206,15 @@ def backtestAnalysis(cond, tradeHistory):
         "realMdd": realMdd,
     }
 
-    # print(
-    #     "{} - 주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
-    #         cond.comment,
-    #         result["stockYield"],
-    #         result["stockMdd"],
-    #         result["realYield"],
-    #         result["realMdd"],
-    #     )
-    # )
+    print(
+        "{} - 주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
+            cond.comment,
+            result["stockYield"] * 100,
+            result["stockMdd"] * 100,
+            result["realYield"] * 100,
+            result["realMdd"] * 100,
+        )
+    )
     return result
 
 
@@ -245,7 +240,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
     worksheet.set_column("O:O", None, style1)
     worksheet.set_column("R:W", None, style1)
 
-    style2 = workbook.add_format({"num_format": "0.00%", "border": 1})
+    style2 = workbook.add_format({"num_format": "0.000%", "border": 1})
     worksheet.set_column("G:G", None, style2)
     worksheet.set_column("H:H", None, style2)
     worksheet.set_column("N:N", None, style2)
@@ -332,24 +327,24 @@ def makeExcel(tradeHistory, cond, analysisResult):
     baseRowIdx = len(tradeHistory) + 12
     worksheet.write(baseRowIdx, 0, "--------------")
     worksheet.write(baseRowIdx + 1, 0, "분석기간")
-    worksheet.write(baseRowIdx + 1, 1, str(cond.fromDate) + " ~ " + str(cond.toDate))
+    worksheet.write(baseRowIdx + 1, 1, cond.getRange())
     worksheet.write(baseRowIdx + 2, 0, "대상종목")
     worksheet.write(baseRowIdx + 2, 1, cond.targetStock[0].getFullName())
     worksheet.write(baseRowIdx + 3, 0, "변동성 비율(K)")
     worksheet.write(baseRowIdx + 3, 1, cond.k, style2)
     worksheet.write(baseRowIdx + 4, 0, "투자비율")
     worksheet.write(baseRowIdx + 4, 1, cond.investRatio, style2)
-    worksheet.write(baseRowIdx + 5, 0, "최초 투자금액", style1)
-    worksheet.write(baseRowIdx + 5, 1, cond.cash)
+    worksheet.write(baseRowIdx + 5, 0, "최초 투자금액")
+    worksheet.write(baseRowIdx + 5, 1, cond.cash, style1)
     worksheet.write(baseRowIdx + 6, 0, "매매 마진")
     worksheet.write(baseRowIdx + 6, 1, cond.tradeMargin, style1)
     worksheet.write(baseRowIdx + 7, 0, "매수 수수료")
     worksheet.write(baseRowIdx + 7, 1, cond.feeBid, style2)
     worksheet.write(baseRowIdx + 8, 0, "매도 수수료")
     worksheet.write(baseRowIdx + 8, 1, cond.feeAsk, style2)
-    worksheet.write(baseRowIdx + 9, 0, "손절")
+    worksheet.write(baseRowIdx + 9, 0, "손절률")
     worksheet.write(baseRowIdx + 9, 1, cond.loseStopRate, style2)
-    worksheet.write(baseRowIdx + 10, 0, "트레일링스탑 진입")
+    worksheet.write(baseRowIdx + 10, 0, "트레일링스탑 진입률")
     worksheet.write(baseRowIdx + 10, 1, cond.gainStopRate, style2)
     worksheet.write(baseRowIdx + 11, 0, "트레일링스탑 매도률")
     worksheet.write(baseRowIdx + 11, 1, cond.trailingStopRate, style2)
@@ -359,25 +354,55 @@ def makeExcel(tradeHistory, cond, analysisResult):
     workbook.close()
 
 
-cond = condition.Condition(
-    k=0.5,
-    targetStock=[Stock("A069500", "KODEX 200", False)],
-    investRatio=0.5,
-    fromDate=20210112,
-    toDate=20210623,
-    cash=10000000,
-    tradeMargin=5,
-    feeBid=0.00015,
-    feeAsk=0.00015,
-    loseStopRate=0.003,
-    gainStopRate=0.05,
-    trailingStopRate=0.001,
-    comment="횡보구간",
-)
+def makeAnalysisExcel(analysis):
+    workbook = xlsxwriter.Workbook("backtest_result/백테스팅결과.xlsx")
+    worksheet = workbook.add_worksheet("result")
+    style1 = workbook.add_format({"num_format": "#,###", "border": 1})
+    style2 = workbook.add_format({"num_format": "0.000%", "border": 1})
+    style3 = workbook.add_format({"border": 1})
 
-tradeHistory = backtestVbs(cond)
-analysisResult = backtestAnalysis(cond, tradeHistory)
-makeExcel(tradeHistory, cond, analysisResult)
+    header = [
+        "분석기간",
+        "대상종목",
+        "변동성 비율(K)",
+        "투자비율",
+        "최초 투자금액",
+        "매매 마진",
+        "매수 수수료",
+        "매도 수수료",
+        "손절률",
+        "트레일링스탑 진입률",
+        "트레일링스탑 매도률",
+        "조건 설명",
+        "실제수익",
+        "실제MDD",
+        "투자수익",
+        "투자MDD",
+    ]
+    worksheet.set_row(
+        0, None, workbook.add_format({"bold": True, "align": "center", "border": 1})
+    )
+    for idx, name in enumerate(header):
+        worksheet.write(0, idx, name)
 
+    for idx, r in enumerate(analysis, 1):
+        cond = r["condition"]
+        analysisResult = r["analysisResult"]
+        worksheet.write(idx, 0, cond.getRange(), style3)
+        worksheet.write(idx, 1, cond.targetStock[0].getFullName(), style2)
+        worksheet.write(idx, 2, cond.k, style2)
+        worksheet.write(idx, 3, cond.investRatio, style2)
+        worksheet.write(idx, 4, cond.cash, style1)
+        worksheet.write(idx, 5, cond.tradeMargin, style1)
+        worksheet.write(idx, 6, cond.feeBid, style2)
+        worksheet.write(idx, 7, cond.feeAsk, style2)
+        worksheet.write(idx, 8, cond.loseStopRate, style2)
+        worksheet.write(idx, 9, cond.gainStopRate, style2)
+        worksheet.write(idx, 10, cond.trailingStopRate, style2)
+        worksheet.write(idx, 11, cond.comment, style3)
+        worksheet.write(idx, 12, analysisResult["stockYield"], style2)
+        worksheet.write(idx, 13, analysisResult["stockMdd"], style2)
+        worksheet.write(idx, 14, analysisResult["realYield"], style2)
+        worksheet.write(idx, 15, analysisResult["realMdd"], style2)
 
-print("끝.")
+    workbook.close()

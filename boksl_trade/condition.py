@@ -81,3 +81,6 @@ class Condition:
     @property
     def comment(self):
         return self.__comment
+
+    def getRange(self):
+        return str(self.__fromDate) + " ~ " + str(self.__toDate)
