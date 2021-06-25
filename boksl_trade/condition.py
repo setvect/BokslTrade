@@ -2,6 +2,7 @@
 class Condition:
     def __init__(
         self,
+        targetStock,
         k,
         investRatio,
         fromDate,
@@ -16,6 +17,7 @@ class Condition:
         comment,
     ):
         self.__k = k  #  변동성 돌파 판단 비율
+        self.__targetStock = targetStock  # 대상종목
         self.__investRatio = investRatio  # 총 현금을 기준으로 투자 비율. 1은 전액, 0.5은 50% 투자
         self.__fromDate = fromDate  # 분석대상 기간 - 시작
         self.__toDate = toDate  # 분석대상 기간 - 종료
@@ -31,6 +33,10 @@ class Condition:
     @property
     def k(self):
         return self.__k
+
+    @property
+    def targetStock(self):
+        return self.__targetStock
 
     @property
     def investRatio(self):

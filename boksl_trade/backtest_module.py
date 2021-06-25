@@ -2,6 +2,7 @@ import csv
 from os import write
 import sys
 import xlsxwriter
+from stock import Stock
 import util
 import condition
 from trade_result import AskReason, TradeResult
@@ -71,7 +72,13 @@ def isAskTime(time):
     return 1510 < time < 1520
 
 
-def backtestVbs(stockItemList, cond):
+def backtestVbs(cond):
+    # A069500: KODEX 200
+    # A122630: KODEX 레버리지
+    # A114800: KODEX 인버스
+    # A252670: KODEX 200선물인버스2X
+    stockItemList = loadPriceDate(cond.targetStock[0].code)
+
     groupByDate = getGroupByDate(stockItemList)
 
     # 일단위 OHLC 구함
@@ -203,13 +210,27 @@ def backtestAnalysis(cond, tradeHistory):
         "realYield": realYield,
         "realMdd": realMdd,
     }
+
+    # print(
+    #     "{} - 주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
+    #         cond.comment,
+    #         result["stockYield"],
+    #         result["stockMdd"],
+    #         result["realYield"],
+    #         result["realMdd"],
+    #     )
+    # )
     return result
 
 
 # 백테스팅 결과 엑셀 파일 만들기
 def makeExcel(tradeHistory, cond, analysisResult):
+    codes = [item.code for item in cond.targetStock]
+
     workbook = xlsxwriter.Workbook(
-        "backtest_result/{}_{}.xlsx".format(cond.fromDate, cond.toDate)
+        "backtest_result/{}_{}({}).xlsx".format(
+            cond.fromDate, cond.toDate, ",".join(codes)
+        )
     )
     worksheet = workbook.add_worksheet("result")
     worksheet.set_row(
@@ -313,7 +334,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
     worksheet.write(baseRowIdx + 1, 0, "분석기간")
     worksheet.write(baseRowIdx + 1, 1, str(cond.fromDate) + " ~ " + str(cond.toDate))
     worksheet.write(baseRowIdx + 2, 0, "대상종목")
-    worksheet.write(baseRowIdx + 2, 1, "TODO")
+    worksheet.write(baseRowIdx + 2, 1, cond.targetStock[0].getFullName())
     worksheet.write(baseRowIdx + 3, 0, "변동성 비율(K)")
     worksheet.write(baseRowIdx + 3, 1, cond.k, style2)
     worksheet.write(baseRowIdx + 4, 0, "투자비율")
@@ -340,6 +361,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
 
 cond = condition.Condition(
     k=0.5,
+    targetStock=[Stock("A069500", "KODEX 200", False)],
     investRatio=0.5,
     fromDate=20210112,
     toDate=20210623,
@@ -353,23 +375,9 @@ cond = condition.Condition(
     comment="횡보구간",
 )
 
-# A069500: KODEX 200
-# A122630: KODEX 레버리지
-# A114800: KODEX 인버스
-# A252670: KODEX 200선물인버스2X
-stockItemList = loadPriceDate("A069500")
-tradeHistory = backtestVbs(stockItemList, cond)
+tradeHistory = backtestVbs(cond)
 analysisResult = backtestAnalysis(cond, tradeHistory)
-
-print(
-    "{} - 주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
-        cond.comment,
-        analysisResult["stockYield"],
-        analysisResult["stockMdd"],
-        analysisResult["realYield"],
-        analysisResult["realMdd"],
-    )
-)
-
 makeExcel(tradeHistory, cond, analysisResult)
+
+
 print("끝.")
