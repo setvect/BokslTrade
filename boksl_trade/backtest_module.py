@@ -69,7 +69,7 @@ def isBidTime(time):
 
 # 매도 가능 시간
 def isAskTime(time):
-    return 1510 < time < 1520
+    return 1515 < time < 1520
 
 
 def backtestVbs(cond):
@@ -92,6 +92,7 @@ def backtestVbs(cond):
     currentTrade = None
 
     for candle in stockItemList:
+        # 날짜가 변경 시 초기화 작업
         if currentDate != candle["date"]:
             if currentDate is not None:
                 if currentTrade is not None:

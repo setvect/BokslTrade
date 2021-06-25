@@ -19,7 +19,7 @@ def backtestRange(fromDate, toDate, comment):
         tradeMargin=5,
         feeBid=0.00015,
         feeAsk=0.00015,
-        loseStopRate=0.003,
+        loseStopRate=0.01,
         gainStopRate=0.05,
         trailingStopRate=0.001,
         comment=comment,
