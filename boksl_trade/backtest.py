@@ -1,4 +1,5 @@
 import csv
+from os import write
 import sys
 import xlsxwriter
 import util
@@ -206,7 +207,7 @@ def backtestAnalysis(cond, tradeHistory):
 
 
 # 백테스팅 결과 엑셀 파일 만들기
-def makeExcel(tradeHistory, cond):
+def makeExcel(tradeHistory, cond, analysisResult):
     workbook = xlsxwriter.Workbook(
         "backtest_result/{}_{}.xlsx".format(cond.fromDate, cond.toDate)
     )
@@ -294,6 +295,46 @@ def makeExcel(tradeHistory, cond):
         worksheet.write(idx, 21, trade.getInvestResult())
         worksheet.write(idx, 22, trade.getFinalResult())
 
+    # 투자 요약결과
+    baseRowIdx = len(tradeHistory) + 5
+    worksheet.write(baseRowIdx, 0, "--------------")
+    worksheet.write(baseRowIdx + 1, 0, "실제수익")
+    worksheet.write(baseRowIdx + 1, 1, analysisResult["stockYield"], style2)
+    worksheet.write(baseRowIdx + 2, 0, "실제MDD")
+    worksheet.write(baseRowIdx + 2, 1, analysisResult["stockMdd"], style2)
+    worksheet.write(baseRowIdx + 3, 0, "투자수익")
+    worksheet.write(baseRowIdx + 3, 1, analysisResult["realYield"], style2)
+    worksheet.write(baseRowIdx + 4, 0, "투자MDD")
+    worksheet.write(baseRowIdx + 4, 1, analysisResult["realMdd"], style2)
+
+    # 투자 조건
+    baseRowIdx = len(tradeHistory) + 12
+    worksheet.write(baseRowIdx, 0, "--------------")
+    worksheet.write(baseRowIdx + 1, 0, "분석기간")
+    worksheet.write(baseRowIdx + 1, 1, str(cond.fromDate) + " ~ " + str(cond.toDate))
+    worksheet.write(baseRowIdx + 2, 0, "대상종목")
+    worksheet.write(baseRowIdx + 2, 1, "TODO")
+    worksheet.write(baseRowIdx + 3, 0, "변동성 비율(K)")
+    worksheet.write(baseRowIdx + 3, 1, cond.k, style2)
+    worksheet.write(baseRowIdx + 4, 0, "투자비율")
+    worksheet.write(baseRowIdx + 4, 1, cond.investRatio, style2)
+    worksheet.write(baseRowIdx + 5, 0, "최초 투자금액", style1)
+    worksheet.write(baseRowIdx + 5, 1, cond.cash)
+    worksheet.write(baseRowIdx + 6, 0, "매매 마진")
+    worksheet.write(baseRowIdx + 6, 1, cond.tradeMargin, style1)
+    worksheet.write(baseRowIdx + 7, 0, "매수 수수료")
+    worksheet.write(baseRowIdx + 7, 1, cond.feeBid, style2)
+    worksheet.write(baseRowIdx + 8, 0, "매도 수수료")
+    worksheet.write(baseRowIdx + 8, 1, cond.feeAsk, style2)
+    worksheet.write(baseRowIdx + 9, 0, "손절")
+    worksheet.write(baseRowIdx + 9, 1, cond.loseStopRate, style2)
+    worksheet.write(baseRowIdx + 10, 0, "트레일링스탑 진입")
+    worksheet.write(baseRowIdx + 10, 1, cond.gainStopRate, style2)
+    worksheet.write(baseRowIdx + 11, 0, "트레일링스탑 매도률")
+    worksheet.write(baseRowIdx + 11, 1, cond.trailingStopRate, style2)
+    worksheet.write(baseRowIdx + 12, 0, "조건 설명")
+    worksheet.write(baseRowIdx + 12, 1, cond.comment)
+
     workbook.close()
 
 
@@ -309,6 +350,7 @@ cond = condition.Condition(
     loseStopRate=0.003,
     gainStopRate=0.05,
     trailingStopRate=0.001,
+    comment="횡보구간",
 )
 
 # A069500: KODEX 200
@@ -317,13 +359,17 @@ cond = condition.Condition(
 # A252670: KODEX 200선물인버스2X
 stockItemList = loadPriceDate("A069500")
 tradeHistory = backtestVbs(stockItemList, cond)
-result = backtestAnalysis(cond, tradeHistory)
+analysisResult = backtestAnalysis(cond, tradeHistory)
 
 print(
-    "주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
-        result["stockYield"], result["stockMdd"], result["realYield"], result["realMdd"]
+    "{} - 주식수익률: {:.2f}%, 주식MDD: {:.2f}%, 투자수익률: {:.2f}%, 투자MDD: {:.2f}%".format(
+        cond.comment,
+        analysisResult["stockYield"],
+        analysisResult["stockMdd"],
+        analysisResult["realYield"],
+        analysisResult["realMdd"],
     )
 )
 
-makeExcel(tradeHistory, cond)
+makeExcel(tradeHistory, cond, analysisResult)
 print("끝.")
