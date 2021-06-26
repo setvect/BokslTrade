@@ -25,8 +25,8 @@ class Condition:
         self.__tradeMargin = tradeMargin  # 매매시 채결 가격 차이
         self.__feeBid = feeBid  # 매수 수수료
         self.__feeAsk = feeAsk  # 매도 수수료
-        self.__loseStopRate = loseStopRate  # 손절라인
-        self.__gainStopRate = gainStopRate  # 익절라인
+        self.__loseStopRate = loseStopRate  # 손절률
+        self.__gainStopRate = gainStopRate  # 트레일링 스탑 진입률
         self.__trailingStopRate = trailingStopRate  # 트레일링 스탑 하락 매도률
         self.__comment = comment  # 조건에대한 설명글
 
