@@ -11,24 +11,23 @@ rangeList = [
 ]
 
 cond = condition.Condition(
-    k=0.5,
     targetStock=[Stock("A069500", "KODEX 200", False)],
     investRatio=0.5,
-    fromDate=20210601,
-    toDate=20210620,
+    fromDate=20210101,
+    toDate=20211230,
     cash=10000000,
     tradeMargin=5,
     feeBuy=0.00015,
     feeSell=0.00015,
-    riseBuyRate=0.001,
-    fallSellRate=0.001,
-    shortMalDuration=10,
+    upBuyRate=0.000,
+    downSellRate=0.000,
+    shortMalDuration=1,
     longMalDuration=20,
     comment="최근1개월",
 )
-tradeHistory = backtestMal(cond)
-# analysisResult = backtestAnalysis(cond, tradeHistory)
-# makeExcel(tradeHistory, cond, analysisResult)
 
+tradeHistory = backtestMal(cond)
+analysisResult = backtestAnalysis(cond, tradeHistory)
+makeExcel(tradeHistory, cond, analysisResult)
 
 print("끝.")

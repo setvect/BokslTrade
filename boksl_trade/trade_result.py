@@ -2,7 +2,6 @@ class TradeResult:
     def __init__(
         self,
         candle={},
-        isTrade=False,
         buyPrice=0,
         sellPrice=0,
         volume=0,
@@ -13,7 +12,6 @@ class TradeResult:
         longMal=0,
     ):
         self.__candle = candle  # 매수 시점 캔들
-        self.__isTrade = isTrade  # 매매 여부
         self.__buyPrice = buyPrice  # 매수 체결 가격
         self.__sellPrice = sellPrice  # 매도 체결 가격
         self.__volume = volume  # 주식 수량
@@ -30,14 +28,6 @@ class TradeResult:
     @candle.setter
     def candle(self, value):
         self.__candle = value
-
-    @property
-    def isTrade(self):
-        return self.__isTrade
-
-    @isTrade.setter
-    def isTrade(self, value):
-        self.__isTrade = value
 
     @property
     def buyPrice(self):
@@ -103,6 +93,12 @@ class TradeResult:
     def longMal(self, value):
         self.__longMal = value
 
+    def isBuy(self):
+        return self.buyPrice != 0
+
+    def isSell(self):
+        return self.sellPrice != 0
+
     # 매수금액
     def getBuyAmount(self):
         return self.volume * self.buyPrice
@@ -113,8 +109,12 @@ class TradeResult:
 
     # 실현 수익
     def getRealYield(self):
-        if self.isTrade:
+        # 매도 상태
+        if self.isSell():
             return (self.sellPrice / self.buyPrice) - 1
+        # 매수 상태
+        elif self.isBuy():
+            return (self.candle["close"] / self.buyPrice) - 1
         return 0
 
     # 투자 수익
@@ -144,7 +144,7 @@ class TradeResult:
         return (
             "날짜: {date}, 시가: {open:,}, 고가:{high:,}, 저가: {low:,}, "
             + "종가: {close:,}, 직전 종가: {beforeClose:,}, 단기 이동평균: {shortMal:,}, 장기 이동평균: {longMal:,}, "
-            + "당일 수익률: {candleYield:0,.2f}%, 장중 수익률: {marketYield:0,.2f}%, 매매여부: {isTrade}, "
+            + "당일 수익률: {candleYield:0,.2f}%, 장중 수익률: {marketYield:0,.2f}%, 매수 여부: {isBuy}, "
             + "매수 체결 가격: {buyPrice:,}, 매수 수량: {volume:,}, 매도 체결 가격: {sellPrice:,}, "
             + "실현 수익률: {realYield:,.2f}%, 투자금: {investmentAmount:,}, 현금: {cash:,.0f}, 투자 수익: {gains:,.0f}, 수수료: {feePrice:,.0f}, "
             + "투자 결과: {investResult:,.0f}, 현금+투자결과-수수료: {finalResult:,.0f}"
@@ -159,7 +159,7 @@ class TradeResult:
             longMal=self.longMal,
             candleYield=self.getCandleYield() * 100,
             marketYield=self.getMarketYield() * 100,
-            isTrade=self.isTrade,
+            isBuy=self.isBuy(),
             buyPrice=self.buyPrice,
             volume=self.volume,
             sellPrice=self.sellPrice,

@@ -3,7 +3,6 @@ class Condition:
     def __init__(
         self,
         targetStock,
-        k,
         investRatio,
         fromDate,
         toDate,
@@ -11,13 +10,12 @@ class Condition:
         tradeMargin,
         feeBuy,
         feeSell,
-        fallSellRate,
-        riseBuyRate,
+        downSellRate,
+        upBuyRate,
         shortMalDuration,
         longMalDuration,
         comment,
     ):
-        self.__k = k  #  변동성 돌파 판단 비율
         self.__targetStock = targetStock  # 대상종목
         self.__investRatio = investRatio  # 총 현금을 기준으로 투자 비율. 1은 전액, 0.5은 50% 투자
         self.__fromDate = fromDate  # 분석대상 기간 - 시작
@@ -26,15 +24,11 @@ class Condition:
         self.__tradeMargin = tradeMargin  # 매매시 채결 가격 차이
         self.__feeBuy = feeBuy  # 매수 수수료
         self.__feeSell = feeSell  # 매도 수수료
-        self.__fallSellRate = fallSellRate  # 하락 매도률
-        self.__riseBuyRate = riseBuyRate  # 상승 매도률
+        self.__downSellRate = downSellRate  # 하락 매도률
+        self.__upBuyRate = upBuyRate  # 상승 매수률
         self.__shortMalDuration = shortMalDuration  # 짧은 이동평균 기간
         self.__longMalDuration = longMalDuration  # 기간 이동평균 기간
         self.__comment = comment  # 조건에대한 설명글
-
-    @property
-    def k(self):
-        return self.__k
 
     @property
     def targetStock(self):
@@ -69,12 +63,12 @@ class Condition:
         return self.__feeSell
 
     @property
-    def fallSellRate(self):
-        return self.__fallSellRate
+    def downSellRate(self):
+        return self.__downSellRate
 
     @property
-    def riseBuyRate(self):
-        return self.__riseBuyRate
+    def upBuyRate(self):
+        return self.__upBuyRate
 
     @property
     def shortMalDuration(self):

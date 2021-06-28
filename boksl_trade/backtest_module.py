@@ -41,10 +41,17 @@ def backtestMal(cond):
                     beforeTrade = currentTrade
                     if not (currentDate < cond.fromDate or currentDate > cond.toDate):
                         tradeHistory.append(currentTrade)
+
                 currentTrade = TradeResult()
-                currentTrade.cash = beforeTrade.getFinalResult()
                 currentTrade.beforeClose = beforeOhlc["close"]
                 currentTrade.candle = candle
+                currentTrade.volume = beforeTrade.volume
+                currentTrade.buyPrice = beforeTrade.buyPrice
+                currentTrade.cash = beforeTrade.cash
+
+                if beforeTrade.isSell():
+                    currentTrade.cash = beforeTrade.getFinalResult()
+                    currentTrade.buyPrice = 0
 
             currentDate = candle["date"]
             todaySkip = False
@@ -74,22 +81,52 @@ def backtestMal(cond):
         currentTrade.longMal = getMalCrrent(ohlcList, cond.longMalDuration, candle)
         currentTrade.candle = getOhlc(groupByDate[currentDate])
 
-        # 매도 체크
-        # TODO
+        # 매수 상태면 매도 체크
+        if currentTrade.isBuy():
+            breakThroughDown = isMalDown(
+                cond.downSellRate, currentTrade.shortMal, currentTrade.longMal
+            )
+
+            # 역배열 하락 돌파면 여부 체크
+            if not breakThroughDown:
+                continue
+
+            currentTrade.sellPrice = candle["close"] - cond.tradeMargin
+            currentTrade.feePrice = currentTrade.getSellAmount() * cond.feeBuy
+
+            print(
+                "매도 {}:{}, 단기이평선({}): {:,}, 장기이평선({}): {:,}, 단가:{:,}, 수량:{:,}, 매도금액: {:,} ".format(
+                    candle["date"],
+                    candle["time"],
+                    cond.shortMalDuration,
+                    currentTrade.shortMal,
+                    cond.longMalDuration,
+                    currentTrade.longMal,
+                    currentTrade.sellPrice,
+                    currentTrade.volume,
+                    currentTrade.getSellAmount(),
+                )
+            )
+            todaySkip = True
+
+            continue
 
         breakThroughYesterday = isMalUpBeforeDay(cond, ohlcList)
         # 비교 전날 기준 정배열 이동평균을 돌파하였다면 매수 하지 않음
         if breakThroughYesterday:
             continue
 
-        breakThroughCourrent = isMalUp(
-            cond.riseBuyRate, currentTrade.shortMal, currentTrade.longMal
+        breakThroughUp = isMalUp(
+            cond.upBuyRate, currentTrade.shortMal, currentTrade.longMal
         )
 
-        if not breakThroughCourrent:
+        if not breakThroughUp:
             continue
 
-        # 매수
+        ##################
+        # 매수 진행
+        ##################
+
         currentTrade.buyPrice = candle["close"] + cond.tradeMargin
 
         # 매수 가능 금액
@@ -102,7 +139,7 @@ def backtestMal(cond):
         todaySkip = True
 
         print(
-            "매수 {}:{}, 단기이평선({}): {:,}, 장기이평선({}): {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
+            "매수 {}:{}, 단기이평선({}): {:,}, 장기이평선({}): {:,}, 단가:{:,}, 수량:{:,}, 매수금액: {:,} ".format(
                 candle["date"],
                 candle["time"],
                 cond.shortMalDuration,
@@ -115,15 +152,20 @@ def backtestMal(cond):
             )
         )
 
-        currentTrade.isTrade = True
+    # 맨 마지막이 매수 상태면 현재가로 매도
+    lastTrade = tradeHistory[len(tradeHistory) - 1]
+    if lastTrade.isBuy():
+        lastTrade.sellPrice = lastTrade.candle["close"] - cond.tradeMargin
+        lastTrade.feePrice = lastTrade.getSellAmount() * cond.feeBuy
 
     return tradeHistory
 
 
 # 현시점 이동평균 가격
 def getMalCrrent(ohlcList, duration, currentCandle):
-    substract = ohlcList[-(duration - 1) :]
-    substract.append(currentCandle)
+    substract = ohlcList[-(duration):]
+    substract[len(substract) - 1] = currentCandle
+
     closeList = [v["close"] for v in substract]
     return round(np.average(closeList))
 
@@ -139,12 +181,12 @@ def isMalUpBeforeDay(cond, ohlcList):
     closeList = [v["close"] for v in substract]
     longMal = round(np.average(closeList))
 
-    return isMalUp(cond.riseBuyRate, shortMal, longMal)
+    return isMalUp(cond.upBuyRate, shortMal, longMal)
 
 
 # 정배열 상태에서 이동평균 돌파 판단값
-def isMalUp(riseBuyRate, shortMal, longMal):
-    compareShortMal = round(shortMal - shortMal * riseBuyRate)
+def isMalUp(upBuyRate, shortMal, longMal):
+    compareShortMal = round(shortMal - shortMal * upBuyRate)
     breakThrough = compareShortMal >= longMal
     return breakThrough
 
@@ -205,24 +247,18 @@ def makeExcel(tradeHistory, cond, analysisResult):
     )
 
     style1 = workbook.add_format({"num_format": "#,###", "border": 1})
-    worksheet.set_column("B:F", None, style1)
-    worksheet.set_column("I:I", None, style1)
-    worksheet.set_column("K:K", None, style1)
-    worksheet.set_column("M:M", None, style1)
-    worksheet.set_column("O:O", None, style1)
-    worksheet.set_column("R:W", None, style1)
+    worksheet.set_column("B:H", None, style1)
+    worksheet.set_column("L:N", None, style1)
+    worksheet.set_column("P:Q", None, style1)
+    worksheet.set_column("R:U", None, style1)
 
     style2 = workbook.add_format({"num_format": "0.000%", "border": 1})
-    worksheet.set_column("G:G", None, style2)
-    worksheet.set_column("H:H", None, style2)
-    worksheet.set_column("N:N", None, style2)
-    worksheet.set_column("Q:Q", None, style2)
+    worksheet.set_column("I:J", None, style2)
+    worksheet.set_column("O:O", None, style2)
 
     style3 = workbook.add_format({"border": 1})
     worksheet.set_column("A:A", None, style3)
-    worksheet.set_column("J:J", None, style3)
-    worksheet.set_column("L:L", None, style3)
-    worksheet.set_column("P:P", None, style3)
+    worksheet.set_column("K:K", None, style3)
 
     bg1 = workbook.add_format({"bg_color": "#e1e4ed"})
     bg2 = workbook.add_format({"bg_color": "#dbe1f5"})
@@ -235,16 +271,14 @@ def makeExcel(tradeHistory, cond, analysisResult):
         "저가",
         "종가",
         "직전 종가",
+        "단기 이동평균",
+        "장기 이동평균",
         "당일 수익률",
         "장중 수익률",
-        "매수 목표가",
-        "매매여부",
+        "매수 여부",
         "매수 체결 가격",
-        "트레일링 스탑 진입 여부",
         "매수 수량",
-        "최고수익률",
         "매도 체결 가격",
-        "매도 이유",
         "실현 수익률",
         "투자금",
         "현금",
@@ -262,26 +296,22 @@ def makeExcel(tradeHistory, cond, analysisResult):
         worksheet.write(idx, 2, trade.candle["high"])
         worksheet.write(idx, 3, trade.candle["low"])
         worksheet.write(idx, 4, trade.candle["close"])
-        worksheet.write(idx, 5, trade.beforeClose)
-        worksheet.write(idx, 6, trade.getCandleYield())
-        worksheet.write(idx, 7, trade.getMarketYield())
-        worksheet.write(idx, 8, trade.targetPrice)
-        worksheet.write(idx, 9, trade.isTrade)
-        worksheet.write(idx, 10, trade.buyPrice)
-        worksheet.write(idx, 11, trade.isTrailing)
+        worksheet.write(idx, 5, trade.shortMal)
+        worksheet.write(idx, 6, trade.longMal)
+        worksheet.write(idx, 7, trade.beforeClose)
+        worksheet.write(idx, 8, trade.getCandleYield())
+        worksheet.write(idx, 9, trade.getMarketYield())
+        worksheet.write(idx, 10, trade.isBuy())
+        worksheet.write(idx, 11, trade.buyPrice)
         worksheet.write(idx, 12, trade.volume)
-        worksheet.write(idx, 13, trade.highYield)
-        worksheet.write(idx, 14, trade.sellPrice)
-
-        # 단기, 장기 이동평균
-
-        worksheet.write(idx, 16, trade.getRealYield())
-        worksheet.write(idx, 17, trade.getBuyAmount())
-        worksheet.write(idx, 18, trade.cash)
-        worksheet.write(idx, 19, trade.getGains())
-        worksheet.write(idx, 20, trade.feePrice)
-        worksheet.write(idx, 21, trade.getInvestResult())
-        worksheet.write(idx, 22, trade.getFinalResult())
+        worksheet.write(idx, 13, trade.sellPrice)
+        worksheet.write(idx, 14, trade.getRealYield() if trade.isSell() else "")
+        worksheet.write(idx, 15, trade.getBuyAmount())
+        worksheet.write(idx, 16, trade.cash)
+        worksheet.write(idx, 17, trade.getGains() if trade.isSell() else "")
+        worksheet.write(idx, 18, trade.feePrice)
+        worksheet.write(idx, 19, trade.getInvestResult())
+        worksheet.write(idx, 20, trade.getFinalResult())
 
     # 투자 요약결과
     baseRowIdx = len(tradeHistory) + 5
@@ -302,24 +332,24 @@ def makeExcel(tradeHistory, cond, analysisResult):
     worksheet.write(baseRowIdx + 1, 1, cond.getRange())
     worksheet.write(baseRowIdx + 2, 0, "대상종목")
     worksheet.write(baseRowIdx + 2, 1, cond.targetStock[0].getFullName())
-    worksheet.write(baseRowIdx + 3, 0, "변동성 비율(K)")
-    worksheet.write(baseRowIdx + 3, 1, cond.k, style2)
-    worksheet.write(baseRowIdx + 4, 0, "투자비율")
-    worksheet.write(baseRowIdx + 4, 1, cond.investRatio, style2)
-    worksheet.write(baseRowIdx + 5, 0, "최초 투자금액")
-    worksheet.write(baseRowIdx + 5, 1, cond.cash, style1)
-    worksheet.write(baseRowIdx + 6, 0, "매매 마진")
-    worksheet.write(baseRowIdx + 6, 1, cond.tradeMargin, style1)
-    worksheet.write(baseRowIdx + 7, 0, "매수 수수료")
-    worksheet.write(baseRowIdx + 7, 1, cond.feeBuy, style2)
-    worksheet.write(baseRowIdx + 8, 0, "매도 수수료")
-    worksheet.write(baseRowIdx + 8, 1, cond.feeSell, style2)
-    worksheet.write(baseRowIdx + 9, 0, "손절률")
-    worksheet.write(baseRowIdx + 9, 1, cond.loseStopRate, style2)
-    worksheet.write(baseRowIdx + 10, 0, "트레일링스탑 진입률")
-    worksheet.write(baseRowIdx + 10, 1, cond.gainStopRate, style2)
-    worksheet.write(baseRowIdx + 11, 0, "트레일링스탑 매도률")
-    worksheet.write(baseRowIdx + 11, 1, cond.trailingStopRate, style2)
+    worksheet.write(baseRowIdx + 3, 0, "투자비율")
+    worksheet.write(baseRowIdx + 3, 1, cond.investRatio, style2)
+    worksheet.write(baseRowIdx + 4, 0, "최초 투자금액")
+    worksheet.write(baseRowIdx + 4, 1, cond.cash, style1)
+    worksheet.write(baseRowIdx + 5, 0, "매매 마진")
+    worksheet.write(baseRowIdx + 5, 1, cond.tradeMargin, style1)
+    worksheet.write(baseRowIdx + 6, 0, "매수 수수료")
+    worksheet.write(baseRowIdx + 6, 1, cond.feeBuy, style2)
+    worksheet.write(baseRowIdx + 7, 0, "매도 수수료")
+    worksheet.write(baseRowIdx + 7, 1, cond.feeSell, style2)
+    worksheet.write(baseRowIdx + 8, 0, "단기이평선")
+    worksheet.write(baseRowIdx + 8, 1, cond.shortMalDuration, style1)
+    worksheet.write(baseRowIdx + 9, 0, "장기이평선")
+    worksheet.write(baseRowIdx + 9, 1, cond.longMalDuration, style1)
+    worksheet.write(baseRowIdx + 10, 0, "하락 매도률")
+    worksheet.write(baseRowIdx + 10, 1, cond.downSellRate, style2)
+    worksheet.write(baseRowIdx + 11, 0, "상승 매수률")
+    worksheet.write(baseRowIdx + 11, 1, cond.upBuyRate, style2)
     worksheet.write(baseRowIdx + 12, 0, "조건 설명")
     worksheet.write(baseRowIdx + 12, 1, cond.comment)
 
