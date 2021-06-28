@@ -10,8 +10,8 @@ class Condition:
         tradeMargin,
         feeBuy,
         feeSell,
-        downSellRate,
         upBuyRate,
+        downSellRate,
         shortMalDuration,
         longMalDuration,
         comment,
@@ -24,10 +24,10 @@ class Condition:
         self.__tradeMargin = tradeMargin  # 매매시 채결 가격 차이
         self.__feeBuy = feeBuy  # 매수 수수료
         self.__feeSell = feeSell  # 매도 수수료
-        self.__downSellRate = downSellRate  # 하락 매도률
         self.__upBuyRate = upBuyRate  # 상승 매수률
-        self.__shortMalDuration = shortMalDuration  # 짧은 이동평균 기간
-        self.__longMalDuration = longMalDuration  # 기간 이동평균 기간
+        self.__downSellRate = downSellRate  # 하락 매도률
+        self.__shortMalDuration = shortMalDuration  # 단기 이동평균 기간
+        self.__longMalDuration = longMalDuration  # 장기 이동평균 기간
         self.__comment = comment  # 조건에대한 설명글
 
     @property
@@ -63,12 +63,12 @@ class Condition:
         return self.__feeSell
 
     @property
-    def downSellRate(self):
-        return self.__downSellRate
-
-    @property
     def upBuyRate(self):
         return self.__upBuyRate
+
+    @property
+    def downSellRate(self):
+        return self.__downSellRate
 
     @property
     def shortMalDuration(self):

@@ -17,6 +17,7 @@ def getMarketPrice(objStockMst, code, dateFrom, dateTo):
     objStockMst.SetInputValue(4, 1)  # 요청 개수
     objStockMst.SetInputValue(5, fieldKeys)  # 필드
     objStockMst.SetInputValue(6, ord("m"))  # "D", "W", "M", "m", "T"
+    objStockMst.SetInputValue(7, 5)  # 5분봉
     objStockMst.SetInputValue(9, ord("1"))  # 0: 무수정, 1: 수정주가
     objStockMst.BlockRequest()
     status = objStockMst.GetDibStatus()
@@ -65,9 +66,9 @@ stockCodes = ["A069500", "A122630", "A114800", "A252670"]
 
 for code in stockCodes:
     toDate = datetime.datetime.now()
-    fromDate = toDate - datetime.timedelta(days=365 * 2)
+    fromDate = toDate - datetime.timedelta(days=365 * 5)
 
-    with open("./data/" + code + ".csv", "w", newline="") as f:
+    with open("./data/5_minute/" + code + ".csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(fieldNames)
 
