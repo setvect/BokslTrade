@@ -19,9 +19,9 @@ cond = condition.Condition(
     tradeMargin=5,
     feeBuy=0.00015,
     feeSell=0.00015,
-    upBuyRate=0.000,
-    downSellRate=0.000,
-    shortMalDuration=1,
+    upBuyRate=0.001,
+    downSellRate=0.01,
+    shortMalDuration=10,
     longMalDuration=20,
     comment="최근1개월",
 )

@@ -164,7 +164,8 @@ def backtestMal(cond):
 # 현시점 이동평균 가격
 def getMalCrrent(ohlcList, duration, currentCandle):
     substract = ohlcList[-(duration):]
-    substract[len(substract) - 1] = currentCandle
+    substract.append(currentCandle)
+    substract = substract[1:]
 
     closeList = [v["close"] for v in substract]
     return round(np.average(closeList))
@@ -367,15 +368,15 @@ def makeAnalysisExcel(analysis):
     header = [
         "분석기간",
         "대상종목",
-        "변동성 비율(K)",
         "투자비율",
         "최초 투자금액",
         "매매 마진",
         "매수 수수료",
         "매도 수수료",
-        "손절률",
-        "트레일링스탑 진입률",
-        "트레일링스탑 매도률",
+        "단기이평선",
+        "장기이평선",
+        "하락 매도률",
+        "상승 매수률",
         "조건 설명",
         "실제수익",
         "실제MDD",
@@ -393,16 +394,17 @@ def makeAnalysisExcel(analysis):
         analysisResult = r["analysisResult"]
         worksheet.write(idx, 0, cond.getRange(), style3)
         worksheet.write(idx, 1, cond.targetStock[0].getFullName(), style2)
-        worksheet.write(idx, 2, cond.k, style2)
-        worksheet.write(idx, 3, cond.investRatio, style2)
-        worksheet.write(idx, 4, cond.cash, style1)
-        worksheet.write(idx, 5, cond.tradeMargin, style1)
-        worksheet.write(idx, 6, cond.feeBuy, style2)
-        worksheet.write(idx, 7, cond.feeSell, style2)
-        worksheet.write(idx, 8, cond.loseStopRate, style2)
-        worksheet.write(idx, 9, cond.gainStopRate, style2)
-        worksheet.write(idx, 10, cond.trailingStopRate, style2)
+        worksheet.write(idx, 2, cond.investRatio, style2)
+        worksheet.write(idx, 3, cond.cash, style1)
+        worksheet.write(idx, 4, cond.tradeMargin, style1)
+        worksheet.write(idx, 5, cond.feeBuy, style2)
+        worksheet.write(idx, 6, cond.feeSell, style2)
+        worksheet.write(idx, 7, cond.shortMalDuration, style1)
+        worksheet.write(idx, 8, cond.longMalDuration, style1)
+        worksheet.write(idx, 9, cond.downSellRate, style2)
+        worksheet.write(idx, 10, cond.upBuyRate, style2)
         worksheet.write(idx, 11, cond.comment, style3)
+
         worksheet.write(idx, 12, analysisResult["stockYield"], style2)
         worksheet.write(idx, 13, analysisResult["stockMdd"], style2)
         worksheet.write(idx, 14, analysisResult["realYield"], style2)
