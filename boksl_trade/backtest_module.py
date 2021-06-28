@@ -1,120 +1,53 @@
-import csv
 from os import write
+from re import T
 import sys
 import xlsxwriter
+import numpy as np
 from stock import Stock
 import util
 import condition
-from trade_result import AskReason, TradeResult
+from trade_result import TradeResult
+from backtest_common import *
+
+# 매매 시간 확인
+def isTradeTime(time):
+    return 900 <= time <= 1530
 
 
-# 종목별 분봉 데이터 가져옴
-def loadPriceDate(code):
-    stockItemList = []
-    with open("./data/" + code + ".csv", "r") as f:
-        rdr = csv.DictReader(f)
-        for item in rdr:
-            item["date"] = int(item["date"])
-            item["time"] = int(item["time"])
-            item["open"] = int(item["open"])
-            item["high"] = int(item["high"])
-            item["low"] = int(item["low"])
-            item["close"] = int(item["close"])
-            item["volume"] = int(item["volume"])
-            stockItemList.append(item)
-    return stockItemList
-
-
-# 날짜 기준으로 그룹핑
-def getGroupByDate(stockItemList):
-    groupByDate = {}
-
-    # 날짜로 group by
-    for item in stockItemList:
-        date = item["date"]
-        dateList = groupByDate.get(date)
-
-        if dateList == None:
-            dateList = []
-            groupByDate[date] = dateList
-
-        dateList.append(item)
-    return groupByDate
-
-
-# 그룹 기준 OHLC 구하기
-def getOhlc(priceList):
-    date = priceList[0]["date"]
-    openPrice = priceList[0]["open"]
-    maxHighPrice = priceList[0]["high"]
-    minLowPrice = priceList[0]["low"]
-    closePrice = priceList[len(priceList) - 1]["close"]
-
-    for item in priceList:
-        maxHighPrice = max(maxHighPrice, item["high"])
-        minLowPrice = min(minLowPrice, item["low"])
-    return {
-        "date": date,
-        "open": openPrice,
-        "high": maxHighPrice,
-        "low": minLowPrice,
-        "close": closePrice,
-    }
-
-
-# 매수 시간 확인
-def isBidTime(time):
-    return 910 < time < 1500
-
-
-# 매도 가능 시간
-def isAskTime(time):
-    return 1515 < time < 1520
-
-
-def backtestVbs(cond):
+# 이동 평균 매매
+def backtestMal(cond):
     stockItemList = loadPriceDate(cond.targetStock[0].code)
-
     groupByDate = getGroupByDate(stockItemList)
-
-    # 일단위 OHLC 구함
-    for dateKey in groupByDate:
-        ohlc = getOhlc(groupByDate[dateKey])
-
+    ohlcList = []
     tradeHistory = []
 
     currentDate = None
     beforeOhlc = None
 
-    targetValue = sys.maxsize
-
     beforeTrade = TradeResult(cash=cond.cash)
     currentTrade = None
+    todaySkip = False
 
     for candle in stockItemList:
+
         # 날짜가 변경 시 초기화 작업
         if currentDate != candle["date"]:
             if currentDate is not None:
+                # 현재 날짜 OHLC 계산
+                beforeOhlc = getOhlc(groupByDate[currentDate])
+                ohlcList.append(beforeOhlc)
+
                 if currentTrade is not None:
                     beforeTrade = currentTrade
                     if not (currentDate < cond.fromDate or currentDate > cond.toDate):
                         tradeHistory.append(currentTrade)
-                beforeOhlc = getOhlc(groupByDate[currentDate])
                 currentTrade = TradeResult()
                 currentTrade.cash = beforeTrade.getFinalResult()
                 currentTrade.beforeClose = beforeOhlc["close"]
                 currentTrade.candle = candle
 
-                # 매수 목표가 구하기
-                targetValue = candle["open"] + int(
-                    (beforeOhlc["high"] - beforeOhlc["low"]) * cond.k
-                )
-                currentTrade.targetPrice = targetValue
             currentDate = candle["date"]
-
-        # 직전 캔들 데이터가 없으면 skip
-        if beforeOhlc is None:
-            continue
+            todaySkip = False
 
         # 백테스팅 대상 범위가 아니면 skip
         isTestRange = currentDate < cond.fromDate or currentDate > cond.toDate
@@ -122,74 +55,105 @@ def backtestVbs(cond):
         if isTestRange:
             continue
 
-        # 매수 했다면 매도 조건 체크
-        if currentTrade.isTrade:
-            rate = candle["close"] / currentTrade.bidPrice - 1
-            currentTrade.highYield = max(
-                currentTrade.highYield,
-                rate,
+        if not isTradeTime(candle["time"]):
+            continue
+
+        # 이평선을 계산하기 위한 데이터가 부족하면 매매 하지 않음
+        if len(ohlcList) + 1 < cond.longMalDuration:
+            continue
+
+        # 매매 가능시간 체크
+        if not isTradeTime(candle["time"]):
+            continue
+
+        # 오늘 매매가 이루어 졌다면 오늘은 더이상 매매를 하지 않음
+        if todaySkip:
+            continue
+
+        currentTrade.shortMal = getMalCrrent(ohlcList, cond.shortMalDuration, candle)
+        currentTrade.longMal = getMalCrrent(ohlcList, cond.longMalDuration, candle)
+        currentTrade.candle = getOhlc(groupByDate[currentDate])
+
+        # 매도 체크
+        # TODO
+
+        breakThroughYesterday = isMalUpBeforeDay(cond, ohlcList)
+        # 비교 전날 기준 정배열 이동평균을 돌파하였다면 매수 하지 않음
+        if breakThroughYesterday:
+            continue
+
+        breakThroughCourrent = isMalUp(
+            cond.riseBuyRate, currentTrade.shortMal, currentTrade.longMal
+        )
+
+        if not breakThroughCourrent:
+            continue
+
+        # 매수
+        currentTrade.buyPrice = candle["close"] + cond.tradeMargin
+
+        # 매수 가능 금액
+        possible = int(beforeTrade.getFinalResult() * cond.investRatio)
+        # 매수 가능 수량
+        currentTrade.volume = possible // currentTrade.buyPrice
+
+        currentTrade.feePrice = currentTrade.getBuyAmount() * cond.feeBuy
+        currentTrade.cash = beforeTrade.getFinalResult() - currentTrade.getBuyAmount()
+        todaySkip = True
+
+        print(
+            "매수 {}:{}, 단기이평선({}): {:,}, 장기이평선({}): {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
+                candle["date"],
+                candle["time"],
+                cond.shortMalDuration,
+                currentTrade.shortMal,
+                cond.longMalDuration,
+                currentTrade.longMal,
+                currentTrade.buyPrice,
+                currentTrade.volume,
+                currentTrade.getBuyAmount(),
             )
+        )
 
-            if rate > cond.gainStopRate:
-                currentTrade.isTrailing = True
-
-            # 매도 여부 체크
-            if currentTrade.askPrice != 0:
-                continue
-
-            askReason = None
-
-            # 매도 시간 경과
-            if isAskTime(candle["time"]):
-                askReason = AskReason.TIME
-            # 손절 체크
-            elif -rate > cond.loseStopRate:
-                askReason = AskReason.LOSS
-            # 익절 체크
-            elif currentTrade.isTrailing:
-                # 트레일링 스탑 하락 검증 판단
-                if rate < currentTrade.highYield - cond.trailingStopRate:
-                    askReason = AskReason.GAIN
-
-            if askReason is not None:
-                currentTrade.askReason = askReason
-                currentTrade.askPrice = candle["close"] - cond.tradeMargin
-                currentTrade.feePrice = (
-                    currentTrade.feePrice
-                    + (currentTrade.askPrice * currentTrade.volume) * cond.feeAsk
-                )
-
-        # 매수 체크
-        elif isBidTime(candle["time"]):
-            if currentTrade.targetPrice > candle["close"]:
-                continue
-
-            currentTrade.candle = getOhlc(groupByDate[currentDate])
-            currentTrade.bidPrice = candle["close"] + cond.tradeMargin
-
-            # 매수 가능 금액
-            possible = int(beforeTrade.getFinalResult() * cond.investRatio)
-            # 매수 가능 수량
-            currentTrade.volume = possible // currentTrade.bidPrice
-
-            currentTrade.feePrice = currentTrade.getBidAmount() * cond.feeBid
-            currentTrade.cash = (
-                beforeTrade.getFinalResult() - currentTrade.getBidAmount()
-            )
-            # print(
-            #     "매수 {}:{} 목표가: {:,}, 단가:{:,}, 수량:{:,}, 총금액: {:,} ".format(
-            #         candle["date"],
-            #         candle["time"],
-            #         currentTrade.targetPrice,
-            #         currentTrade.bidPrice,
-            #         currentTrade.volume,
-            #         currentTrade.getBidAmount(),
-            #     )
-            # )
-
-            currentTrade.isTrade = True
+        currentTrade.isTrade = True
 
     return tradeHistory
+
+
+# 현시점 이동평균 가격
+def getMalCrrent(ohlcList, duration, currentCandle):
+    substract = ohlcList[-(duration - 1) :]
+    substract.append(currentCandle)
+    closeList = [v["close"] for v in substract]
+    return round(np.average(closeList))
+
+
+# 비교 전날 이동 평균을 돌파했는지 여부 판단
+def isMalUpBeforeDay(cond, ohlcList):
+    # 전날 이동 평균값 구하기
+    substract = ohlcList[-(cond.shortMalDuration) :]
+    closeList = [v["close"] for v in substract]
+    shortMal = round(np.average(closeList))
+
+    substract = ohlcList[-(cond.longMalDuration) :]
+    closeList = [v["close"] for v in substract]
+    longMal = round(np.average(closeList))
+
+    return isMalUp(cond.riseBuyRate, shortMal, longMal)
+
+
+# 정배열 상태에서 이동평균 돌파 판단값
+def isMalUp(riseBuyRate, shortMal, longMal):
+    compareShortMal = round(shortMal - shortMal * riseBuyRate)
+    breakThrough = compareShortMal >= longMal
+    return breakThrough
+
+
+# 역배열 상태에서 이동평균 하락 돌파
+def isMalDown(failBuyRate, shortMal, longMal):
+    compareShortMal = round(shortMal + shortMal * failBuyRate)
+    breakThrough = compareShortMal <= longMal
+    return breakThrough
 
 
 # 백테스팅 분석
@@ -303,16 +267,16 @@ def makeExcel(tradeHistory, cond, analysisResult):
         worksheet.write(idx, 7, trade.getMarketYield())
         worksheet.write(idx, 8, trade.targetPrice)
         worksheet.write(idx, 9, trade.isTrade)
-        worksheet.write(idx, 10, trade.bidPrice)
+        worksheet.write(idx, 10, trade.buyPrice)
         worksheet.write(idx, 11, trade.isTrailing)
         worksheet.write(idx, 12, trade.volume)
         worksheet.write(idx, 13, trade.highYield)
-        worksheet.write(idx, 14, trade.askPrice)
-        worksheet.write(
-            idx, 15, trade.askReason.name if trade.askReason is not None else "-"
-        )
+        worksheet.write(idx, 14, trade.sellPrice)
+
+        # 단기, 장기 이동평균
+
         worksheet.write(idx, 16, trade.getRealYield())
-        worksheet.write(idx, 17, trade.getBidAmount())
+        worksheet.write(idx, 17, trade.getBuyAmount())
         worksheet.write(idx, 18, trade.cash)
         worksheet.write(idx, 19, trade.getGains())
         worksheet.write(idx, 20, trade.feePrice)
@@ -347,9 +311,9 @@ def makeExcel(tradeHistory, cond, analysisResult):
     worksheet.write(baseRowIdx + 6, 0, "매매 마진")
     worksheet.write(baseRowIdx + 6, 1, cond.tradeMargin, style1)
     worksheet.write(baseRowIdx + 7, 0, "매수 수수료")
-    worksheet.write(baseRowIdx + 7, 1, cond.feeBid, style2)
+    worksheet.write(baseRowIdx + 7, 1, cond.feeBuy, style2)
     worksheet.write(baseRowIdx + 8, 0, "매도 수수료")
-    worksheet.write(baseRowIdx + 8, 1, cond.feeAsk, style2)
+    worksheet.write(baseRowIdx + 8, 1, cond.feeSell, style2)
     worksheet.write(baseRowIdx + 9, 0, "손절률")
     worksheet.write(baseRowIdx + 9, 1, cond.loseStopRate, style2)
     worksheet.write(baseRowIdx + 10, 0, "트레일링스탑 진입률")
@@ -403,8 +367,8 @@ def makeAnalysisExcel(analysis):
         worksheet.write(idx, 3, cond.investRatio, style2)
         worksheet.write(idx, 4, cond.cash, style1)
         worksheet.write(idx, 5, cond.tradeMargin, style1)
-        worksheet.write(idx, 6, cond.feeBid, style2)
-        worksheet.write(idx, 7, cond.feeAsk, style2)
+        worksheet.write(idx, 6, cond.feeBuy, style2)
+        worksheet.write(idx, 7, cond.feeSell, style2)
         worksheet.write(idx, 8, cond.loseStopRate, style2)
         worksheet.write(idx, 9, cond.gainStopRate, style2)
         worksheet.write(idx, 10, cond.trailingStopRate, style2)

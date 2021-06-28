@@ -1,5 +1,6 @@
 {
-  "python.pythonPath": "C:\\python39-32\\python.exe",
-  "editor.formatOnSave": true,
-  "python.formatting.provider": "black"
+	"python.pythonPath": "C:\\python39-32\\python.exe",
+	"editor.formatOnSave": true,
+	"python.formatting.provider": "black",
+	"python.analysis.useImportHeuristic": true
 }
