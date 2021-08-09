@@ -3,7 +3,7 @@ import csv
 # 종목별 분봉 데이터 가져옴
 def loadPriceDate(code):
     stockItemList = []
-    with open("./data/5_minute/" + code + ".csv", "r") as f:
+    with open("../../data/5_minute/" + code + ".csv", "r") as f:
         rdr = csv.DictReader(f)
         for item in rdr:
             item["date"] = int(item["date"])

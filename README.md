@@ -73,3 +73,8 @@
 - `data/5_minute/A114800.csv`: KODEX 레버리지
 - `data/5_minute/A122630.csv`: KODEX 인버스
 - `data/5_minute/A252670.csv`: KODEX 200선물인버스2X
+
+## 참고
+- [크래온플러스 API](https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_List_Page.aspx?boardseq=284&m=9505&p=8841&v=8643)
+- [파이썬 증권 데이터 분석](https://github.com/INVESTAR/StockAnalysisInPython)
+- [조코딩](https://www.youtube.com/watch?v=Y01D2J_7894&list=PLU9-uwewPMe0fB60VIMuKFV7gPDXmyOzp&index=1&ab_channel=%EC%A1%B0%EC%BD%94%EB%94%A9JoCoding)

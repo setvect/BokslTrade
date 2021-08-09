@@ -237,7 +237,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
     codes = [item.code for item in cond.targetStock]
 
     workbook = xlsxwriter.Workbook(
-        "backtest_result/{}_{}({}).xlsx".format(
+        "../../backtest_result/{}_{}({}).xlsx".format(
             cond.fromDate, cond.toDate, ",".join(codes)
         )
     )
@@ -358,7 +358,7 @@ def makeExcel(tradeHistory, cond, analysisResult):
 
 
 def makeAnalysisExcel(analysis):
-    workbook = xlsxwriter.Workbook("backtest_result/백테스팅결과.xlsx")
+    workbook = xlsxwriter.Workbook("../../backtest_result/백테스팅결과.xlsx")
     worksheet = workbook.add_worksheet("result")
     worksheet.freeze_panes(1, 0)
     style1 = workbook.add_format({"num_format": "#,###", "border": 1})
