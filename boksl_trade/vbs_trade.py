@@ -6,6 +6,16 @@ import win32com.client
 import pandas as pd
 from datetime import datetime
 
+# 매매 대상 종목
+# A122630 - KODEX 레버리지
+# A233740 - KODEX 코스닥150 레버리지
+# targetStockCode = ["A122630", "A233740"]
+# A069500 - KODEX 200069500
+# A229200 - KODEX 코스닥 150
+targetStockCode = ["A069500", "A229200"]
+# 전체 현금에서 거래 금액
+investRate = 0.5
+
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -16,11 +26,6 @@ cpOhlc = win32com.client.Dispatch("CpSysDib.StockChart")
 cpBalance = win32com.client.Dispatch("CpTrade.CpTd6033")
 cpCash = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
 cpOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
-
-# 매매 대상 종목
-# A122630 - KODEX 레버리지
-# A233740 - KODEX 코스닥150 레버리지
-targetStockCode = ["A122630", "A233740"]
 
 
 def dbgout(message):
@@ -127,13 +132,24 @@ def get_stock_balance(code):
 
 def get_current_cash():
     """증거금 100% 주문 가능 금액을 반환한다."""
-    cpTradeUtil.TradeInit()
-    acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
-    accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
-    cpCash.SetInputValue(0, acc)  # 계좌번호
-    cpCash.SetInputValue(1, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
-    cpCash.BlockRequest()
-    return cpCash.GetHeaderValue(9)  # 증거금 100% 주문 가능 금액
+    try:
+        cpTradeUtil.TradeInit()
+        acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
+        accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
+        cpCash.SetInputValue(0, acc)  # 계좌번호
+        cpCash.SetInputValue(1, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
+        ret = cpCash.BlockRequest()
+        if ret != 0:
+            printlog("증거금 조회 오류", ret)
+
+        rqStatus = cpOrder.GetDibStatus()
+        errMsg = cpOrder.GetDibMsg1()
+        if rqStatus != 0:
+            printlog("증거금 조회 실패: ", rqStatus, errMsg)
+
+        return cpCash.GetHeaderValue(9)  # 증거금 100% 주문 가능 금액
+    except Exception as ex:
+        dbgout("get_current_cash() -> exception! " + str(ex))
 
 
 def get_target_price(code):
@@ -159,52 +175,123 @@ def get_target_price(code):
         return None
 
 
-def buy_etf(code):
+def printStatus(codeList):
+    """종목별 코드별 매수 목표가 및 현재 상태 출력"""
+    myCash = get_current_cash()
+    printlog("보유 현금: {:,}".format(myCash))
+
+    for code in codeList:
+        stock_name, stock_qty = get_stock_balance(code)  # 종목명과 보유수량 조회
+        target_price = get_target_price(code)  # 매수 목표가
+        printlog(stock_name, "매수 목표가: {:,}".format(target_price))
+        printlog(stock_name, "현재 보유 수량: {:,}".format(stock_qty))
+
+
+def buy_stock(codeList):
     """인자로 받은 종목을 최유리 지정가 FOK 조건으로 매수한다."""
     try:
+        buyEtfCount = 0
+        for code in codeList:
+            stock_name, stock_qty = get_stock_balance(code)  # 종목명과 보유수량 조회
+            if stock_qty != 0:
+                buyEtfCount += 1
 
-        stock_name, stock_qty = get_stock_balance(code)  # 종목명과 보유수량 조회
+        myCash = get_current_cash()
+        buyRate = (buyEtfCount + 1 / len(codeList)) * investRate
+        # ETF 종목당 매수 제한 금액
+        buyCash = myCash * buyRate
 
-        if stock_qty != 0:
-            printlog("매수 물량 존재:" + stock_name + str(stock_qty))
-            return
+        for code in codeList:
+            stock_name, stock_qty = get_stock_balance(code)  # 종목명과 보유수량 조회
 
-        targetPrice = get_target_price(code)  # 매수 목표가
-        cash = get_current_cash()
-        useCash = cash / len(targetStockCode)
-        # 매수 수량
-        buy_qty = int(useCash // targetPrice)
+            if stock_qty != 0:
+                printlog("매수 물량 존재:" + stock_name + str(stock_qty))
+                continue
 
-        printlog("매수 주문", stock_name + "(" + str(code) + "), 수량:" + str(buy_qty) + ", 가격: " + str(targetPrice))
+            target_price = get_target_price(code)  # 매수 목표가
+
+            current_price, ask_price, bid_price = get_current_price(code)
+            # 목표가를 돌파했을 경우 매수
+            if current_price < target_price:
+                printlog("목표가 돌파 못함", stock_name + "(" + code + ")", "현재가: {:,}".format(current_price), "목표가: {:,}".format(target_price))
+                continue
+
+            useCash = buyCash / len(targetStockCode)
+            # 매수 수량
+            buy_qty = int(useCash // target_price)
+
+            printlog("매수 주문", stock_name + "(" + str(code) + "), 수량:" + str(buy_qty) + ", 가격: " + str(target_price))
+            cpTradeUtil.TradeInit()
+            acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
+            accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
+
+            # 충분한 매수 채결을 위해 매도호가 + 50원 올려서 주문
+            buy_price = ask_price + 50
+            # 매수 주문 설정
+            cpOrder.SetInputValue(0, "2")  # 2: 매수
+            cpOrder.SetInputValue(1, acc)  # 계좌번호
+            cpOrder.SetInputValue(2, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
+            cpOrder.SetInputValue(3, code)  # 종목코드
+            # cpOrder.SetInputValue(4, buy_qty)  # 매수할 수량
+            cpOrder.SetInputValue(4, 1)  # 매수할 수량
+            cpOrder.SetInputValue(5, buy_price)  # 주문 단가
+            cpOrder.SetInputValue(7, "0")  # 주문조건 0:기본, 1:IOC, 2:FOK
+            cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
+            # 매수 주문 요청
+            ret = cpOrder.BlockRequest()
+            printlog("매수 요청 ->", stock_name + "(" + code + ")", "수량: {:,}".format(buy_qty), "매도호가: {:,}".format(ask_price), "주문가격: {:,}".format(buy_price),  "->", ret)
+
+            if ret != 0:
+                printlog("주문요청 오류", ret)
+
+            rqStatus = cpOrder.GetDibStatus()
+            errMsg = cpOrder.GetDibMsg1()
+            if rqStatus != 0:
+                printlog("주문 실패: ", rqStatus, errMsg)
+
+            time.sleep(2)
+    except Exception as ex:
+        dbgout("`buy_stock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
+
+
+def sell_stock(codeList):
+    """보유한 모든 종목을 최유리 지정가 IOC 조건으로 매도한다."""
+    try:
         cpTradeUtil.TradeInit()
         acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
-        accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
+        accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
 
-        # 최유리 FOK 매수 주문 설정
-        cpOrder.SetInputValue(0, "2")  # 2: 매수
-        cpOrder.SetInputValue(1, acc)  # 계좌번호
-        cpOrder.SetInputValue(2, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
-        cpOrder.SetInputValue(3, code)  # 종목코드
-        cpOrder.SetInputValue(4, buy_qty)  # 매수할 수량
-        cpOrder.SetInputValue(5, targetPrice)  # 주문 단가
-        cpOrder.SetInputValue(7, "0")  # 주문조건 0:기본, 1:IOC, 2:FOK
-        cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가
-        # 5:조건부, 12:최유리, 13:최우선
-        # 매수 주문 요청
-        ret = cpOrder.BlockRequest()
-        printlog("매수 요청 ->", stock_name, code, buy_qty, targetPrice,  "->", ret)
+        for code in codeList:
+            stock_name, stock_qty = get_stock_balance(code)  # 종목명과 보유수량 조회
+            if stock_qty == 0:
+                continue
 
-        if ret != 0:
-            printlog("주문요청 오류", ret)
+            current_price, ask_price, bid_price = get_current_price(code)
 
-        rqStatus = cpOrder.GetDibStatus()
-        errMsg = cpOrder.GetDibMsg1()
-        if rqStatus != 0:
-            printlog("주문 실패: ", rqStatus, errMsg)
+            # 충분한 매도 채결을 위해 매수 호가 - 50원 내려서 주문
+            sell_price = bid_price - 50
+            cpOrder.SetInputValue(0, "1")  # 1:매도, 2:매수
+            cpOrder.SetInputValue(1, acc)  # 계좌번호
+            cpOrder.SetInputValue(2, accFlag[0])  # 주식상품 중 첫번째
+            cpOrder.SetInputValue(3, code)  # 종목코드
+            cpOrder.SetInputValue(4, stock_qty)  # 매도수량
+            cpOrder.SetInputValue(5, sell_price)  # 주문 단가
+            cpOrder.SetInputValue(7, "0")  # 조건 0:기본, 1:IOC, 2:FOK
+            cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
+            # 최유리 IOC 매도 주문 요청
+            ret = cpOrder.BlockRequest()
+            printlog("매도 요청 ->", stock_name + "(" + code + ")", "수량: {:,}".format(stock_qty), "매수호가: {:,}".format(bid_price), "주문가격: {:,}".format(sell_price),  "결과: ", ret)
+            if ret != 0:
+                printlog("주문요청 오류", ret)
 
-        time.sleep(2)
+            rqStatus = cpOrder.GetDibStatus()
+            errMsg = cpOrder.GetDibMsg1()
+            if rqStatus != 0:
+                printlog("주문 실패: ", rqStatus, errMsg)
+
+            time.sleep(2)
     except Exception as ex:
-        dbgout("`buy_etf(" + str(code) + ") -> exception! " + str(ex) + "`")
+        dbgout("sell_stock() -> exception! " + str(ex))
 
 
 def get_movingaverage(code, window):
@@ -227,18 +314,42 @@ def get_movingaverage(code, window):
 
 stockCode = "A122630"
 
-print(check_creon_system())
-# print(get_current_price(buyEtf))
-# ohlc = get_ohlc(buyEtf, 10)
-# print(ohlc)
-print(get_current_cash())
+if __name__ == "__main__":
+    printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+    print("크래온 플러스 동작:", check_creon_system())
 
-print(get_stock_balance(stockCode))
+    statusCheck = False
+    while True:
+        t_now = datetime.now()
+        t_9 = t_now.replace(hour=9, minute=0, second=30, microsecond=0)
+        t_start = t_now.replace(hour=9, minute=3, second=0, microsecond=0)
+        t_sell = t_now.replace(hour=15, minute=15, second=0, microsecond=0)
+        t_exit = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+        today = datetime.today().weekday()
 
-targetPrice = get_target_price(stockCode)
-printlog("매수 목표가:" + str(targetPrice))
+        if today == 5 or today == 6:  # 토요일이나 일요일이면 자동 종료
+            printlog("Today is", "Saturday." if today == 5 else "Sunday.")
+            sys.exit(0)
 
-buy_etf(stockCode)
+        if(t_9 < t_now and not statusCheck):
+            printStatus(targetStockCode)
+            statusCheck = True
+            time.sleep(5)
 
-# ma5 = get_movingaverage(buyEtf, 5)
-# printlog("5일 이동평균:" + str(ma5))
+        # 시초가 매도
+        if t_9 < t_now < t_start:
+            # 보유 물량 매도
+            sell_stock(targetStockCode)
+
+        if t_start < t_now < t_sell:
+            # 매수 체크
+            buy_stock(targetStockCode)
+
+        if t_exit < t_now:  # PM 03:20 ~ :프로그램 종료
+            dbgout("`self-destructed!`")
+            sys.exit(0)
+
+        time.sleep(10)
+
+    # ma5 = get_movingaverage(buyEtf, 5)
+    # printlog("5일 이동평균:" + str(ma5))
