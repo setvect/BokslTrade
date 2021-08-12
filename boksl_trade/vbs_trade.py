@@ -7,6 +7,7 @@ import requests
 from datetime import datetime
 import config
 import logging
+import hts
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -117,7 +118,6 @@ def getStockBalance(code):
     cpBalance.SetInputValue(1, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
     cpBalance.SetInputValue(2, 50)  # 요청 건수(최대 50)
     cpBalance.BlockRequest()
-    stocks = []
 
     for i in range(cpBalance.GetHeaderValue(7)):
         stockCode = cpBalance.GetDataValue(12, i)  # 종목코드
@@ -168,8 +168,8 @@ def getTargetPrice(code):
             raise Exception("거래 정보가 없습니다.")
         lastday_high = lastday[1]
         lastday_low = lastday[2]
-        target_price = today_open + (lastday_high - lastday_low) * 0.5
-        # ETF는 호가 단위가 5원
+        target_price = today_open + (lastday_high - lastday_low) * config.value["vbs"]["k"]
+        # ETF는 호가 단위(5원)울 맞춰 줌
         askPrice = int(target_price) - int(target_price) % 5
         return askPrice
 
@@ -322,6 +322,22 @@ def getMovingaverage(code, window):
         raise ex
 
 
+def isOpenMarket():
+    """장이 열리는 요일/시간인지 판단 판단"""
+    t_now = datetime.now()
+    today = datetime.today().weekday()
+    # 토요일이나 일요일이면 자동 종료
+    if today == 5 or today == 6:
+        return False
+
+    t_8 = t_now.replace(hour=8, minute=0, second=0, microsecond=0)
+    t_1530 = t_now.replace(hour=15, minute=30, second=0, microsecond=0)
+    if(t_now < t_8 or t_now > t_1530):
+        return False
+
+    return True
+
+
 if __name__ == "__main__":
     printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
     print("크래온 플러스 동작:", checkCreonSystem())
@@ -329,34 +345,35 @@ if __name__ == "__main__":
     targetStockCode = config.value["vbs"]["stockCode"]
 
     statusCheck = False
+    htsRestart = False
+
     while True:
         t_now = datetime.now()
+        t_8 = t_now.replace(hour=5, minute=0, second=30, microsecond=0)
         t_9 = t_now.replace(hour=9, minute=0, second=30, microsecond=0)
         t_start = t_now.replace(hour=9, minute=3, second=0, microsecond=0)
-        t_sell = t_now.replace(hour=15, minute=15, second=0, microsecond=0)
-        t_exit = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+        t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
         today = datetime.today().weekday()
 
-        if today == 5 or today == 6:  # 토요일이나 일요일이면 자동 종료
-            printlog("Today is", "Saturday." if today == 5 else "Sunday.")
-            sys.exit(0)
+        if not isOpenMarket():
+            printlog("지금은 주식 시장이 열릴 때가 아님")
+            htsRestart = False
+            time.sleep(60 * 30)
+            continue
+
+        if(t_8 < t_now and not htsRestart):
+            # 하루마다 크래온플러스를 재시작함
+            hts.restart()
+            htsRestart = True
 
         if(t_9 < t_now and not statusCheck):
             printStatus(targetStockCode)
             statusCheck = True
-            time.sleep(5)
-
-        # 시초가 매도
-        if t_9 < t_now < t_start:
-            # 보유 물량 매도
+        elif t_9 < t_now < t_start:
+            #  시초가 매도 보유 물량 매도
             sellStock(targetStockCode)
-
-        if t_start < t_now < t_sell:
+        elif t_start < t_now < t_sell:
             # 매수 체크
             buyStock(targetStockCode)
-
-        if t_exit < t_now:  # PM 03:20 ~ :프로그램 종료
-            sendSlack("`self-destructed!`")
-            sys.exit(0)
 
         time.sleep(10)
