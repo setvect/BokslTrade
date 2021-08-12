@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 import config
+import logging
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -16,6 +17,14 @@ cpOhlc = win32com.client.Dispatch("CpSysDib.StockChart")
 cpBalance = win32com.client.Dispatch("CpTrade.CpTd6033")
 cpCash = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
 cpOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
+
+logging.basicConfig(
+    filename=config.value["logger"]["file"],
+    encoding='utf-8',
+    level=config.value["logger"]["level"],
+    format=config.value["logger"]["format"],
+)
+logging.getLogger().addHandler(logging.StreamHandler())
 
 
 def sendSlack(*messageArgs):
@@ -37,7 +46,9 @@ def sendSlack(*messageArgs):
 
 def printlog(message, *args):
     """인자로 받은 문자열을 파이썬 셸에 출력한다."""
-    print(datetime.now().strftime("[%m/%d %H:%M:%S]"), message, *args)
+    # print(datetime.now().strftime("[%m/%d %H:%M:%S]"), message, *args)
+    logMessage = message + ' '.join(list(map(str, args)))
+    logging.info(logMessage)
 
 
 def checkCreonSystem():
@@ -211,7 +222,7 @@ def buyStock(codeList):
             currentPrice, askPrice, bidPrice = getCurrentPrice(code)
             # 목표가를 돌파했을 경우 매수
             if currentPrice < targetPrice:
-                printlog("목표가 돌파 못함", stockName + "(" + code + ")", "현재가: {:,}".format(currentPrice), "목표가: {:,}".format(targetPrice))
+                printlog("목표가 돌파 못함 ", stockName + "(" + code + ")", "현재가: {:,}".format(currentPrice), "목표가: {:,}".format(targetPrice))
                 continue
 
             useCash = buyCash / len(codeList)
@@ -349,6 +360,3 @@ if __name__ == "__main__":
             sys.exit(0)
 
         time.sleep(10)
-
-# ma5 = getMovingaverage("A122630", 5)
-# printlog("5일 이동평균:" + str(ma5))

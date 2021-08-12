@@ -1,9 +1,15 @@
 import os
+import logging
 value = {
     "slack": {
         "use": False,
         "token": os.getenv("slack-token"),
         "channel": "#boksl-trade"
+    },
+    "logger": {
+        "file": "./boksl-trade.log",
+        "level": logging.INFO,
+        "format": "[%(asctime)s] %(levelname)s:%(message)s"
     },
     # 변동성 돌파전략 관련 설정
     "vbs": {
