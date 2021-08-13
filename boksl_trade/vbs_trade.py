@@ -32,7 +32,7 @@ def sendSlack(*messageArgs):
     message = ' '.join(list(map(str, messageArgs)))
 
     """인자로 받은 문자열을 파이썬 셸과 슬랙으로 동시에 출력한다."""
-    printlog("Send Slack: " + message, config.value["slack"]["use"])
+    printlog("Send Slack: " + message)
 
     if not config.value["slack"]["use"]:
         return
