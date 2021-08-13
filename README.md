@@ -14,8 +14,8 @@
 
 ### 1.1.1. 매매 전략
 `변동성 돌파` 전략을 사용하여 매매
-
-- 매수 조건: 오늘 시초가 + (전일 고가 - 전일 저가) * 변동폭(k)
+- 매수 조건: 현재 가격이 목표가를 돌파하면 매수
+  - 목표가 = 오늘 시초가 + (전일 고가 - 전일 저가) * 변동폭(k)
 - 매도 조건: 매수 다음날 시가 매도
 ### 1.1.2. 관련 소스 파일
 - [boksl_trade/vbs_trade.py](boksl_trade/vbs_trade.py) 변동성 돌파 전략을 사용한 매매 메인 소스
@@ -44,13 +44,13 @@
        - ![Server Map](./docs/image/03.png)
        - ![Server Map](./docs/image/04.png)
 3. 패키지 설치
-  ```sh
-  pip install pywin32
-  pip install pandas
-  pip install requests
-  pip install pywinauto
-  ```
-4. HTS 로그인 정보 설정
+     ```sh
+     pip install pywin32
+     pip install pandas
+     pip install requests
+     pip install pywinauto
+     ```
+4. 설정 값 입력
   - [boksl_trade/hts.py](boksl_trade/hts.py) 아이디, 비밀번호, 공동인증서 비밀번호 입력
   - [boksl_trade/config.py](boksl_trade/config.py) 설정 입력
 5. 실행
@@ -60,7 +60,6 @@
     ```
   - 명령어 실행 이후 아래와 같은 메시지 나오면서 자동매매 진행(약 1분 20초 정도 걸림)
     - ![Server Map](./docs/image/08.png)
-
 
 ## 1.2. 백테스트
 ### 1.2.1. 파일 설명
