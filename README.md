@@ -61,6 +61,22 @@
   - 명령어 실행 이후 아래와 같은 메시지 나오면서 자동매매 진행(약 1분 20초 정도 걸림)
     - ![Server Map](./docs/image/08.png)
 
+### 1.1.5. AWS 셋팅
+[EC2에서 Windows 7/8/10 설치하기](https://tech.yangs.kr/3) 문서 참고 셋팅 바람
+
+- [AWS 관련 설정](aws)
+- 사용한 명령어
+  ```sh
+  aws configure
+  aws sts get-caller-identity
+
+  aws s3 cp win10_1.vhd s3://windows-trade/win10_1.vhd
+
+  aws iam create-role --role-name vmimport --assume-role-policy-document file://policy.json
+  aws iam put-role-policy --role-name vmimport --policy-name vmimport --policy-document file://policy-import.json
+  aws ec2 import-image --license-type BYOL --disk-containers file://win10-image.json
+  aws ec2 describe-import-image-tasks --import-task-ids import-ami-0f7f50d55e2afefaa
+  ```
 ## 1.2. 백테스트
 ### 1.2.1. 파일 설명
 - [boksl_trade/backtest/crawling.py](boksl_trade/backtest/crawling.py) 1분봉 데이터 크롤링 - 최근 2년치 데이터만 크레온 PLUS에서 제공합니다.

@@ -1,0 +1,10 @@
+[
+  {
+      "Description": "Windows 10 Public Image ",
+      "Format": "vhd",
+      "UserBucket": {
+          "S3Bucket": "windows-boksltrade",
+          "S3Key": "win10_1.vhd"
+      }
+  }
+]
