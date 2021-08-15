@@ -7,7 +7,6 @@ import requests
 from datetime import datetime
 import config
 import logging
-import hts
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -353,7 +352,6 @@ if __name__ == "__main__":
     targetStockCode = config.value["vbs"]["stockCode"]
 
     statusCheck = False
-    htsRestart = False
 
     while True:
         t_now = datetime.now()
@@ -368,11 +366,6 @@ if __name__ == "__main__":
             htsRestart = False
             time.sleep(60 * 30)
             continue
-
-        if(t_8 < t_now and not htsRestart):
-            # 하루마다 크래온플러스를 재시작함
-            hts.restart()
-            htsRestart = True
 
         if(t_9 < t_now and not statusCheck):
             printStatus(targetStockCode)

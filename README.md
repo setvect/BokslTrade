@@ -49,6 +49,7 @@
      pip install pandas
      pip install requests
      pip install pywinauto
+     pip install cryptography
      ```
 4. 설정 값 입력
   - [boksl_trade/hts.py](boksl_trade/hts.py) 아이디, 비밀번호, 공동인증서 비밀번호 입력
@@ -56,6 +57,7 @@
 5. 실행
   - `관리자 권한`으로 명령 프롬프트 실행
     ```sh
+    python hts.py
     python vbs_trade.py
     ```
   - 명령어 실행 이후 아래와 같은 메시지 나오면서 자동매매 진행(약 1분 20초 정도 걸림)
