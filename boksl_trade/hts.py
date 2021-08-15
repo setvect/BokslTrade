@@ -29,3 +29,7 @@ def restart():
     command = "C:\CREON\STARTER\coStarter.exe /prj:cp /id:{} /pwd:{} /pwdcert:{} /autostart".format(userid, pwd, pwdcert)
     app.start(command)
     time.sleep(60)
+
+
+if __name__ == "__main__":
+    restart()

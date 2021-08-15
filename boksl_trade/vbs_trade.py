@@ -155,6 +155,7 @@ def getCurrentCash():
         raise ex
 
 
+# 오늘
 def getTargetPrice(code):
     """매수 목표가를 반환한다."""
     try:
@@ -165,7 +166,7 @@ def getTargetPrice(code):
             today_open = ohlc.iloc[0].open
             lastday = ohlc.iloc[1]
         else:
-            raise Exception("거래 정보가 없습니다.")
+            return None
         lastday_high = lastday[1]
         lastday_low = lastday[2]
         target_price = today_open + (lastday_high - lastday_low) * config.value["vbs"]["k"]
@@ -186,8 +187,12 @@ def printStatus(codeList):
 
     for code in codeList:
         stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
-        target_price = getTargetPrice(code)  # 매수 목표가
-        messageArr.append(stockName + ",. 매수 목표가: {:,}".format(target_price))
+        targetPrice = getTargetPrice(code)  # 매수 목표가
+        if targetPrice is None:
+            messageArr.append(stockName + ",. 시장이 열리지 않았음")
+        else:
+            messageArr.append(stockName + ",. 매수 목표가: {:,}".format(targetPrice))
+
         if stockQty == 0:
             messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
         else:
@@ -218,6 +223,9 @@ def buyStock(codeList):
                 continue
 
             targetPrice = getTargetPrice(code)  # 매수 목표가
+            if targetPrice is None:
+                printlog("시장 열리지 않음")
+                continue
 
             currentPrice, askPrice, bidPrice = getCurrentPrice(code)
             # 목표가를 돌파했을 경우 매수
