@@ -60,8 +60,12 @@
     python hts.py
     python vbs_trade.py
     ```
-  - 명령어 실행 이후 아래와 같은 메시지 나오면서 자동매매 진행(약 1분 20초 정도 걸림)
-    - ![Server Map](./docs/image/08.png)
+  - 명령어 실행 이후 자동매매 진행
+  - `작업 스케줄러`를 이용해 매일 hts.py, vbs_trade.py가 실행되도록 작업 추가
+    - 작업등록 시 보안옵선 항목 `가장 높은 수준의 권한으로 실행` 체크
+      - ![Server Map](./docs/image/09.png)
+    - hts.py -> 매일 08:30분에 실행
+    - vbs_trade.py -> 매일 오전 08:45분에 실행
 
 ### 1.1.5. AWS 셋팅
 [EC2에서 Windows 7/8/10 설치하기](https://tech.yangs.kr/3) 문서 참고 셋팅 바람

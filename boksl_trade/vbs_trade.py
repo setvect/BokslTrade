@@ -330,16 +330,11 @@ def getMovingaverage(code, window):
 
 
 def isOpenMarket():
-    """장이 열리는 요일/시간인지 판단 판단"""
+    """장이 열리는 요일 판단"""
     t_now = datetime.now()
     today = datetime.today().weekday()
     # 토요일이나 일요일이면 자동 종료
     if today == 5 or today == 6:
-        return False
-
-    t_8 = t_now.replace(hour=8, minute=0, second=0, microsecond=0)
-    t_1530 = t_now.replace(hour=15, minute=30, second=0, microsecond=0)
-    if(t_now < t_8 or t_now > t_1530):
         return False
 
     return True
@@ -362,13 +357,15 @@ if __name__ == "__main__":
         today = datetime.today().weekday()
 
         if not isOpenMarket():
-            printlog("지금은 주식 시장이 열릴 때가 아님")
-            htsRestart = False
-            time.sleep(60 * 30)
-            continue
+            sendSlack("오늘은 주식 시장이 열리지 않았음")
+            break
 
         if(t_9 < t_now and not statusCheck):
             printStatus(targetStockCode)
+            targetPrice = getTargetPrice(targetStockCode[0])
+            if targetPrice is None:
+                sendSlack("오늘은 주식 시장이 열리지 않았음")
+                break
             statusCheck = True
         elif t_9 < t_now < t_start:
             #  시초가 매도 보유 물량 매도
@@ -376,5 +373,9 @@ if __name__ == "__main__":
         elif t_start < t_now < t_sell:
             # 매수 체크
             buyStock(targetStockCode)
+
+        elif t_now > t_sell:
+            sendSlack("복슬매매 종료")
+            break
 
         time.sleep(10)
