@@ -210,7 +210,7 @@ def buyStock(codeList):
                 buyStockCount += 1
 
         myCash = getCurrentCash()
-        buyRate = (buyStockCount + 1 / len(codeList)) * config.value["vbs"]["investRate"]
+        buyRate = ((buyStockCount + 1) / len(codeList)) * config.value["vbs"]["investRate"]
         # 종목당 매수 제한 금액
         buyCash = myCash * buyRate
 
@@ -232,9 +232,8 @@ def buyStock(codeList):
                 printlog("목표가 돌파 못함 ", stockName + "(" + code + ")", "현재가: {:,}".format(currentPrice), "목표가: {:,}".format(targetPrice))
                 continue
 
-            useCash = buyCash / len(codeList)
             # 매수 수량
-            buyQty = int(useCash // targetPrice)
+            buyQty = int(buyCash // targetPrice)
 
             printlog("매수 주문", stockName + "(" + str(code) + "), 수량:" + str(buyQty) + ", 가격: " + str(targetPrice))
             cpTradeUtil.TradeInit()
