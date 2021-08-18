@@ -48,7 +48,9 @@ def printlog(message, *args):
     """인자로 받은 문자열을 파이썬 셸에 출력한다."""
     # print(datetime.now().strftime("[%m/%d %H:%M:%S]"), message, *args)
     logMessage = message + ' '.join(list(map(str, args)))
-    logging.info(logMessage)
+    sendMessage = datetime.now().strftime("[%m/%d %H:%M:%S] ") + logMessage
+
+    logging.info(sendMessage)
 
 
 def checkCreonSystem():
