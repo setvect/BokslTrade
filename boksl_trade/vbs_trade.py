@@ -351,7 +351,7 @@ if __name__ == "__main__":
 
     while True:
         t_now = datetime.now()
-        t_9 = t_now.replace(hour=9, minute=0, second=00, microsecond=0)
+        t_9 = t_now.replace(hour=9, minute=0, second=3, microsecond=0)
         t_start = t_now.replace(hour=9, minute=2, second=0, microsecond=0)
         t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
         today = datetime.today().weekday()
