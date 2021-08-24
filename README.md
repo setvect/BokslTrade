@@ -21,6 +21,7 @@
 - [boksl_trade/vbs_trade.py](boksl_trade/vbs_trade.py) 변동성 돌파 전략을 사용한 매매 메인 소스
 - [boksl_trade/hts.py](boksl_trade/hts.py) 크래온 PLUS 재시작
 - [boksl_trade/config.py](boksl_trade/config.py) 슬랙, 로깅, 변동성 돌파 변수 설정
+- [boksl_trade/log.py](boksl_trade/log.py) 로그 관련 설정(파일, 출력 패턴 등)
 
 ### 1.1.3. 사전 준비사항
 - 크래온 계좌 개설
