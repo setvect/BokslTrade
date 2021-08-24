@@ -171,6 +171,9 @@ def getTargetPrice(code):
         lastday_high = lastday[1]
         lastday_low = lastday[2]
         target_price = today_open + (lastday_high - lastday_low) * config.value["vbs"]["k"]
+
+        printlog("{:,} + ({:,} - {:,}) * {} = {:,}".format(today_open, lastday_high, lastday_low, config.value["vbs"]["k"], target_price))
+
         # ETF는 호가 단위(5원)울 맞춰 줌
         askPrice = int(target_price) - int(target_price) % 5
         return askPrice
@@ -367,7 +370,8 @@ if __name__ == "__main__":
                 sendSlack("오늘은 주식 시장이 열리지 않았음")
                 break
             statusCheck = True
-        elif t_9 < t_now < t_start:
+
+        if t_9 < t_now < t_start:
             #  시초가 매도 보유 물량 매도
             sellStock(targetStockCode)
         elif t_start < t_now < t_sell:
