@@ -1,4 +1,3 @@
-import sys
 import ctypes
 import time
 import win32com.client
@@ -6,7 +5,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 import config
-import logging
+from log import logger
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -17,14 +16,6 @@ cpOhlc = win32com.client.Dispatch("CpSysDib.StockChart")
 cpBalance = win32com.client.Dispatch("CpTrade.CpTd6033")
 cpCash = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
 cpOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
-
-logging.basicConfig(
-    filename=config.value["logger"]["file"],
-    encoding='utf-8',
-    level=config.value["logger"]["level"],
-    format=config.value["logger"]["format"],
-)
-logging.getLogger().addHandler(logging.StreamHandler())
 
 
 def sendSlack(*messageArgs):
@@ -48,9 +39,7 @@ def printlog(message, *args):
     """인자로 받은 문자열을 파이썬 셸에 출력한다."""
     # print(datetime.now().strftime("[%m/%d %H:%M:%S]"), message, *args)
     logMessage = message + ' '.join(list(map(str, args)))
-    sendMessage = datetime.now().strftime("[%m/%d %H:%M:%S] ") + logMessage
-
-    logging.info(sendMessage)
+    logger.info(logMessage)
 
 
 def checkCreonSystem():
