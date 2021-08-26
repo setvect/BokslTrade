@@ -172,12 +172,25 @@ def getTargetPrice(code):
         raise ex
 
 
-def printStatus(codeList):
-    """종목별 코드별 매수 목표가 및 현재 상태 슬랙으로 전달"""
+def sendStatus(codeList):
+    """종목별 코드 매수 상태를 슬랙으로 전달"""
     myCash = getCurrentCash()
     messageArr = []
     messageArr.append("보유 현금: {:,}".format(myCash))
 
+    for code in codeList:
+        stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
+        if stockQty == 0:
+            messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
+        else:
+            messageArr.append(stockName + ",. 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQty, stockPrice, stockGain))
+
+    sendSlack("\n".join(messageArr))
+
+
+def sendTargetPrice(codeList):
+    """종목별 코드별 매수 목표가 슬랙으로 전달"""
+    messageArr = []
     for code in codeList:
         stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
         targetPrice = getTargetPrice(code)  # 매수 목표가
@@ -185,11 +198,6 @@ def printStatus(codeList):
             messageArr.append(stockName + ",. 시장이 열리지 않았음")
         else:
             messageArr.append(stockName + ",. 매수 목표가: {:,}".format(targetPrice))
-
-        if stockQty == 0:
-            messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
-        else:
-            messageArr.append(stockName + ",. 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQty, stockPrice, stockGain))
 
     sendSlack("\n".join(messageArr))
 
@@ -334,41 +342,49 @@ def isOpenMarket():
 
 
 if __name__ == "__main__":
-    printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
-    print("크래온 플러스 동작:", checkCreonSystem())
+    try:
+        printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+        print("크래온 플러스 동작:", checkCreonSystem())
 
-    targetStockCode = config.value["vbs"]["stockCode"]
+        targetStockCode = config.value["vbs"]["stockCode"]
 
-    statusCheck = False
+        statusCheck = False
+        targetPriceCheck = False
 
-    while True:
-        t_now = datetime.now()
-        t_9 = t_now.replace(hour=9, minute=0, second=10, microsecond=0)
-        t_start = t_now.replace(hour=9, minute=1, second=0, microsecond=0)
-        t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
-        today = datetime.today().weekday()
+        while True:
+            t_now = datetime.now()
+            t_9 = t_now.replace(hour=9, minute=0, second=5, microsecond=0)
+            t_start = t_now.replace(hour=9, minute=1, second=0, microsecond=0)
+            t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+            today = datetime.today().weekday()
 
-        if not isOpenMarket():
-            sendSlack("오늘은 주식 시장이 열리지 않았음")
-            break
-
-        if(t_9 < t_now and not statusCheck):
-            printStatus(targetStockCode)
-            targetPrice = getTargetPrice(targetStockCode[0])
-            if targetPrice is None:
+            if not isOpenMarket():
                 sendSlack("오늘은 주식 시장이 열리지 않았음")
                 break
-            statusCheck = True
 
-        if t_9 < t_now < t_start:
-            #  시초가 매도 보유 물량 매도
-            sellStock(targetStockCode)
-        elif t_start < t_now < t_sell:
-            # 매수 체크
-            buyStock(targetStockCode)
+            if(t_9 < t_now and not statusCheck):
+                sendStatus(targetStockCode)
+                targetPrice = getTargetPrice(targetStockCode[0])
+                if targetPrice is None:
+                    sendSlack("오늘은 주식 시장이 열리지 않았음")
+                    break
+                statusCheck = True
 
-        elif t_now > t_sell:
-            sendSlack("복슬매매 종료")
-            break
+            if t_9 < t_now < t_start:
+                #  시초가 매도 보유 물량 매도
+                sellStock(targetStockCode)
+            elif t_start < t_now < t_sell:
+                if not targetPriceCheck:
+                    sendTargetPrice(targetStockCode)
+                    targetPriceCheck = True
+                # 매수 체크
+                buyStock(targetStockCode)
 
-        time.sleep(10)
+            elif t_now > t_sell:
+                sendSlack("복슬매매 종료")
+                break
+
+            time.sleep(10)
+    except Exception as ex:
+        sendSlack("exception! " + str(ex))
+        raise ex
