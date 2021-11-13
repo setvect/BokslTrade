@@ -350,6 +350,7 @@ if __name__ == "__main__":
 
         statusCheck = False
         targetPriceCheck = False
+        wakeSend = False
 
         while True:
             t_now = datetime.now()
@@ -361,6 +362,11 @@ if __name__ == "__main__":
             if not isOpenMarket():
                 sendSlack("오늘은 주식 시장이 열리지 않았음")
                 break
+
+            if not wakeSend:
+                sendSlack("복슬 매매 시작")
+                wakeSend = True
+                continue
 
             if(t_9 < t_now and not statusCheck):
                 sendStatus(targetStockCode)
@@ -384,7 +390,10 @@ if __name__ == "__main__":
                 sendSlack("복슬매매 종료")
                 break
 
-            time.sleep(10)
+            time.sleep(5)
     except Exception as ex:
         sendSlack("exception! " + str(ex))
         raise ex
+
+    # slack message 전달 대기 wait
+    time.sleep(5)
