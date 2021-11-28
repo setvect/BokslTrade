@@ -202,16 +202,16 @@ def sendTargetPrice(codeList):
     sendSlack("\n".join(messageArr))
 
 
-def buyStock(codeList):
+def buyStock(codeList, myCash):
     """인자로 받은 종목을 최유리 지정가 FOK 조건으로 매수한다."""
     try:
+        buy = False
         buyStockCount = 0
         for code in codeList:
             stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
             if stockQty != 0:
                 buyStockCount += 1
 
-        myCash = getCurrentCash()
         buyRate = ((buyStockCount + 1) / len(codeList)) * config.value["vbs"]["investRate"]
         # 종목당 매수 제한 금액
         buyCash = myCash * buyRate
@@ -264,8 +264,9 @@ def buyStock(codeList):
             errMsg = cpOrder.GetDibMsg1()
             if rqStatus != 0:
                 raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
-
+            buy = True
             time.sleep(2)
+        return buy
     except Exception as ex:
         sendSlack("`buyStock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
         raise ex
@@ -351,6 +352,7 @@ if __name__ == "__main__":
         statusCheck = False
         targetPriceCheck = False
         wakeSend = False
+        myCash = 0
 
         while True:
             t_now = datetime.now()
@@ -383,14 +385,20 @@ if __name__ == "__main__":
                 if not targetPriceCheck:
                     sendTargetPrice(targetStockCode)
                     targetPriceCheck = True
-                # 매수 체크
-                buyStock(targetStockCode)
 
+                if myCash == 0:
+                    myCash = getCurrentCash()
+
+                # 매수 체크
+                buy = buyStock(targetStockCode, myCash)
+                # 매수 했으면 증거금 다시 가져옴
+                if buy:
+                    myCash = 0
             elif t_now > t_sell:
                 sendSlack("복슬매매 종료")
                 break
 
-            time.sleep(5)
+            time.sleep(1)
     except Exception as ex:
         sendSlack("exception! " + str(ex))
         raise ex
