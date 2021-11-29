@@ -139,7 +139,10 @@ def getCurrentCash():
         if rqStatus != 0:
             printlog("증거금 조회 실패: ", rqStatus, errMsg)
 
-        return cpCash.GetHeaderValue(9)  # 증거금 100% 주문 가능 금액
+        # 증거금 100% 주문 가능 금액
+        cash = cpCash.GetHeaderValue(9)
+        printlog("증거금: {:,}".format(cash))
+        return cash
     except Exception as ex:
         sendSlack("get_current_cash() -> exception! " + str(ex))
         raise ex
