@@ -387,6 +387,7 @@ if __name__ == "__main__":
             if t_9 < t_now < t_start:
                 #  시초가 매도 보유 물량 매도
                 sellStock(targetStockCode)
+                myCash = 0
             elif t_start < t_now < t_sell:
                 if not targetPriceCheck:
                     sendTargetPrice(targetStockCode)
