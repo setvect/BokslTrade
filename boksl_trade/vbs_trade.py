@@ -125,6 +125,7 @@ def getStockBalance(code):
 def getCurrentCash():
     """증거금 100% 주문 가능 금액을 반환한다."""
     try:
+        time.sleep(1)
         cpTradeUtil.TradeInit()
         acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
         accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
@@ -133,11 +134,13 @@ def getCurrentCash():
         ret = cpCash.BlockRequest()
         if ret != 0:
             printlog("증거금 조회 오류", ret)
+            return 0
 
         rqStatus = cpOrder.GetDibStatus()
         errMsg = cpOrder.GetDibMsg1()
         if rqStatus != 0:
             printlog("증거금 조회 실패: ", rqStatus, errMsg)
+            return 0
 
         # 증거금 100% 주문 가능 금액
         cash = cpCash.GetHeaderValue(9)
@@ -364,7 +367,7 @@ if __name__ == "__main__":
             t_now = datetime.now()
             t_9 = t_now.replace(hour=9, minute=0, second=5, microsecond=0)
             t_start = t_now.replace(hour=9, minute=1, second=0, microsecond=0)
-            t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+            t_buy = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
             today = datetime.today().weekday()
 
             if not isOpenMarket():
@@ -388,7 +391,7 @@ if __name__ == "__main__":
                 #  시초가 매도 보유 물량 매도
                 sellStock(targetStockCode)
                 myCash = 0
-            elif t_start < t_now < t_sell:
+            elif t_start < t_now < t_buy:
                 if not targetPriceCheck:
                     sendTargetPrice(targetStockCode)
                     targetPriceCheck = True
@@ -401,7 +404,7 @@ if __name__ == "__main__":
                 # 매수 했으면 증거금 다시 가져옴
                 if buy:
                     myCash = 0
-            elif t_now > t_sell:
+            elif t_now > t_buy:
                 sendSlack("복슬매매 종료")
                 break
 
