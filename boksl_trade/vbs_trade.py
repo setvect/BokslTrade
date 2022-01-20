@@ -17,6 +17,9 @@ cpBalance = win32com.client.Dispatch("CpTrade.CpTd6033")
 cpCash = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
 cpOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
 
+# 매수요청한 종목 코드
+buyRequsetStockCode = set()
+
 
 def sendSlack(*messageArgs):
     message = ' '.join(list(map(str, messageArgs)))
@@ -209,7 +212,7 @@ def sendTargetPrice(codeList):
 
 
 def buyStock(codeList, myCash):
-    """인자로 받은 종목을 최유리 지정가 FOK 조건으로 매수한다."""
+    """인자로 받은 종목을 매수한다."""
     try:
         buy = False
         buyStockCount = 0
@@ -223,6 +226,11 @@ def buyStock(codeList, myCash):
         buyCash = myCash * buyRate
 
         for code in codeList:
+            if code in buyRequsetStockCode:
+                printlog("매수 요청 종목:", code)
+                continue
+
+            # TODO 상태가 변경될 때만 요청하도록 변경
             stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
 
             if stockQty != 0:
@@ -260,7 +268,7 @@ def buyStock(codeList, myCash):
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
             # API 단위 시간당 호출 건수 제한에 걸리지 않기 위해 일정시간 대기 후 매수 요청
-            time.sleep(2)
+            time.sleep(1)
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
             sendSlack("매수 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
@@ -274,6 +282,8 @@ def buyStock(codeList, myCash):
                 raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
             buy = True
             time.sleep(2)
+
+            buyRequsetStockCode.add(code)
         return buy
     except Exception as ex:
         sendSlack("`buyStock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
