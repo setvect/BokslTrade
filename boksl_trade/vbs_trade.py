@@ -248,8 +248,7 @@ def buyStock(codeList, myCash):
             acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
             accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
 
-            # 충분한 매수 채결을 위해 매도호가 + 50원 올려서 주문
-            buyPrice = askPrice + 50
+            buyPrice = askPrice
             # 매수 주문 설정
             cpOrder.SetInputValue(0, "2")  # 2: 매수
             cpOrder.SetInputValue(1, acc)  # 계좌번호
