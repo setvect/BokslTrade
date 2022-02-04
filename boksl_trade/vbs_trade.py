@@ -268,18 +268,20 @@ def buyStock(codeList, myCash):
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
             # API 단위 시간당 호출 건수 제한에 걸리지 않기 위해 일정시간 대기 후 매수 요청
-            time.sleep(1)
+            time.sleep(2)
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
             sendSlack("매수 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
 
-            if ret != 0:
-                printlog("주문요청 오류", ret)
-
             rqStatus = cpOrder.GetDibStatus()
             errMsg = cpOrder.GetDibMsg1()
+
+            if ret != 0:
+                raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
+
             if rqStatus != 0:
                 raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
+
             buy = True
             time.sleep(2)
 
@@ -287,6 +289,7 @@ def buyStock(codeList, myCash):
         return buy
     except Exception as ex:
         sendSlack("`buyStock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
+        time.sleep(2)
         raise ex
 
 
@@ -314,20 +317,21 @@ def sellStock(codeList):
             cpOrder.SetInputValue(5, sellPrice)  # 주문 단가
             cpOrder.SetInputValue(7, "0")  # 조건 0:기본, 1:IOC, 2:FOK
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
-            # 최유리 IOC 매도 주문 요청
             ret = cpOrder.BlockRequest()
             sendSlack("매도 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(stockQty), "매수호가: {:,}".format(bidPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
-            if ret != 0:
-                printlog("주문요청 오류", ret)
 
             rqStatus = cpOrder.GetDibStatus()
             errMsg = cpOrder.GetDibMsg1()
+            if ret != 0:
+                raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
+
             if rqStatus != 0:
                 raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
 
             time.sleep(2)
     except Exception as ex:
         sendSlack("sellStock() -> exception! " + str(ex))
+        time.sleep(2)
         raise ex
 
 
