@@ -268,7 +268,7 @@ def buyStock(codeList, myCash):
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
             # API 단위 시간당 호출 건수 제한에 걸리지 않기 위해 일정시간 대기 후 매수 요청
-            time.sleep(2)
+            time.sleep(3)
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
             sendSlack("매수 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
@@ -290,7 +290,7 @@ def buyStock(codeList, myCash):
     except Exception as ex:
         sendSlack("`buyStock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
         time.sleep(2)
-        raise ex
+        return False
 
 
 def sellStock(codeList):
