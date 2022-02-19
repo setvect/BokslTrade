@@ -256,7 +256,10 @@ def buyStock(codeList, myCash):
             acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
             accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
 
-            buyPrice = askPrice
+            # API 단위 시간당 호출 건수 제한에 걸리지 않기 위해 일정시간 대기 후 매수 요청
+            time.sleep(3)
+
+            buyPrice = targetPrice
             # 매수 주문 설정
             cpOrder.SetInputValue(0, "2")  # 2: 매수
             cpOrder.SetInputValue(1, acc)  # 계좌번호
@@ -267,8 +270,6 @@ def buyStock(codeList, myCash):
             cpOrder.SetInputValue(7, "0")  # 주문조건 0:기본, 1:IOC, 2:FOK
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
-            # API 단위 시간당 호출 건수 제한에 걸리지 않기 위해 일정시간 대기 후 매수 요청
-            time.sleep(3)
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
             sendSlack("매수 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
