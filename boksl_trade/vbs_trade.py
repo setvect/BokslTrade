@@ -190,9 +190,9 @@ def sendStatus(codeList):
     for code in codeList:
         stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
         if stockQty == 0:
-            messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
+            messageArr.append(stockName + ", 현재 보유 수량: {:,}".format(stockQty))
         else:
-            messageArr.append(stockName + ",. 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQty, stockPrice, stockGain))
+            messageArr.append(stockName + ", 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQty, stockPrice, stockGain))
 
     sendSlack("\n".join(messageArr))
 
@@ -204,9 +204,11 @@ def sendTargetPrice(codeList):
         stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
         targetPrice = getTargetPrice(code)  # 매수 목표가
         if targetPrice is None:
-            messageArr.append(stockName + ",. 시장이 열리지 않았음")
+            messageArr.append(stockName + ", 시장이 열리지 않았음")
         else:
-            messageArr.append(stockName + ",. 매수 목표가: {:,}".format(targetPrice))
+            ohlc = getOhlc(code, 10)
+            today_open = ohlc.iloc[0].open
+            messageArr.append(stockName + ", 매수 목표가: {:,}, 시초가: {:,}".format(targetPrice, today_open))
 
     sendSlack("\n".join(messageArr))
 
