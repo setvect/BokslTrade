@@ -378,6 +378,7 @@ if __name__ == "__main__":
         targetPriceCheck = False
         wakeSend = False
         myCash = 0
+        sendStatus(targetStockCode)
 
         while True:
             t_now = datetime.now()
@@ -396,7 +397,6 @@ if __name__ == "__main__":
                 continue
 
             if(t_9 < t_now and not statusCheck):
-                sendStatus(targetStockCode)
                 targetPrice = getTargetPrice(targetStockCode[0])
                 if targetPrice is None:
                     sendSlack("오늘은 주식 시장이 열리지 않았음")
