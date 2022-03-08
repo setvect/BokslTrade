@@ -6,6 +6,7 @@ import requests
 from datetime import datetime
 import config
 from log import logger
+from tendo import singleton
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -368,6 +369,9 @@ def isOpenMarket():
 
 
 if __name__ == "__main__":
+    # 중복실행 방지
+    me = singleton.SingleInstance()
+
     try:
         printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
         print("크래온 플러스 동작:", checkCreonSystem())
