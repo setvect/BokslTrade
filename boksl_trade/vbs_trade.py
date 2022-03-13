@@ -374,6 +374,9 @@ if __name__ == "__main__":
 
     try:
         printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+        sendSlack("복슬 매매 시작")
+        time.sleep(5)
+
         print("크래온 플러스 동작:", checkCreonSystem())
 
         targetStockCode = config.value["vbs"]["stockCode"]
@@ -396,7 +399,6 @@ if __name__ == "__main__":
                 break
 
             if not wakeSend:
-                sendSlack("복슬 매매 시작")
                 wakeSend = True
                 continue
 
