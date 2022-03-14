@@ -311,8 +311,8 @@ def sellStock(codeList):
 
             currentPrice, askPrice, bidPrice = getCurrentPrice(code)
 
-            # 충분한 매도 채결을 위해 매수 호가 - 50원 내려서 주문
-            sellPrice = bidPrice - 50
+            # 매도 채결을 위해 매수 호가 5원 내려서 주문
+            sellPrice = bidPrice - 5
             cpOrder.SetInputValue(0, "1")  # 1:매도, 2:매수
             cpOrder.SetInputValue(1, acc)  # 계좌번호
             cpOrder.SetInputValue(2, accFlag[0])  # 주식상품 중 첫번째
