@@ -57,7 +57,11 @@ objStockMst = win32com.client.Dispatch("CpSysDib.StockChart")
 # A122630: KODEX 레버리지
 # A114800: KODEX 인버스
 # A252670: KODEX 200선물인버스2X
-stockCodes = ["A069500", "A122630", "A114800", "A252670"]
+# A233740: KODEX 코스닥150 레버리지
+# A091170: KODEX 은행
+# stockCodes = ["A069500", "A122630", "A114800", "A252670"]
+# stockCodes = ["A233740", "A091170"]
+stockCodes = ["A091170"]
 
 
 # marketPrice = getMarketPrice(objStockMst, "A069500", "20200706", "20200706")
@@ -66,9 +70,9 @@ stockCodes = ["A069500", "A122630", "A114800", "A252670"]
 
 for code in stockCodes:
     toDate = datetime.datetime.now()
-    fromDate = toDate - datetime.timedelta(days=365 * 5)
+    fromDate = toDate - datetime.timedelta(days=365 * 5 + 50)
 
-    with open("./data/5_minute/" + code + ".csv", "w", newline="") as f:
+    with open("./data/5_minute_new/" + code + ".csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(fieldNames)
 
