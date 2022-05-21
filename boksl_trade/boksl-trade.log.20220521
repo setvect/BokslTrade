@@ -1,0 +1,17 @@
+[2022-05-21 22:39:41,063] INFO:시작 시간 :05/21 22:39:41
+[2022-05-21 22:39:41,063] INFO:Send Slack: 복슬 매매 시작
+[2022-05-21 22:39:47,483] INFO:증거금: 108,478
+[2022-05-21 22:39:47,553] INFO:Send Slack: 보유 현금: 108,478
+KODEX 레버리지, 현재 보유 수량: 0
+KODEX 코스닥150레버리지, 현재 보유 수량: 918, 평가금액: 10,027,646, 수익률: 1.47%
+[2022-05-21 22:39:47,554] INFO:Send Slack: 오늘은 주식 시장이 열리지 않았음
+[2022-05-21 23:12:18,393] INFO:Send Slack: exception! initStockInfo() missing 1 required positional argument: 'self'
+[2022-05-21 23:13:04,637] INFO:Send Slack: exception! getStockBalance() takes 1 positional argument but 2 were given
+[2022-05-21 23:14:05,143] INFO:Send Slack: exception! cannot unpack non-iterable NoneType object
+[2022-05-21 23:16:58,440] INFO:Send Slack: exception! cannot unpack non-iterable NoneType object
+[2022-05-21 23:17:37,642] INFO:Send Slack: exception! cannot unpack non-iterable NoneType object
+[2022-05-21 23:21:28,423] INFO:Send Slack: exception! cannot unpack non-iterable NoneType object
+[2022-05-21 23:22:25,803] INFO:18,015 + (17,950 - 17,555) * 0.5 = 18,212.5
+[2022-05-21 23:22:25,861] INFO:10,480 + (10,520 - 9,945) * 0.5 = 10,767.5
+[2022-05-21 23:26:35,643] INFO:18,015 + (17,950 - 17,555) * 0.5 = 18,212.5
+[2022-05-21 23:26:35,705] INFO:10,480 + (10,520 - 9,945) * 0.5 = 10,767.5

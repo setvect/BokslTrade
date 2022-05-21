@@ -159,5 +159,8 @@
 
 ## 1.3. 참고
 - [크래온플러스 API](https://money2.creontrade.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_List_Page.aspx?boardseq=284&m=9505&p=8841&v=8643)
+  - [실시간 시세 조회 예제](https://money2.creontrade.com/e5/mboard/ptype_basic/plusPDS/DW_Basic_Read.aspx?boardseq=299&seq=43&page=2&searchString=CpEvent&prd=&lang=&p=8833&v=8639&m=9505)
+  - [실시간 시세 수신](http://cybosplus.github.io/index.html?page=cpsysdib_rtf_1_%2Fstockchart.htm)
+  - [실시간 시세 객체](https://money2.daishin.com/e5/mboard/ptype_basic/HTS_Plus_Helper/DW_Basic_Read_Page.aspx?boardseq=284&seq=16&page=1&searchString=StockCur&p=8839&v=8642&m=9508)
 - [파이썬 증권 데이터 분석](https://github.com/INVESTAR/StockAnalysisInPython)
 - [조코딩](https://www.youtube.com/watch?v=Y01D2J_7894&list=PLU9-uwewPMe0fB60VIMuKFV7gPDXmyOzp&index=1&ab_channel=%EC%A1%B0%EC%BD%94%EB%94%A9JoCoding)
