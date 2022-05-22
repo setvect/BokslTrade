@@ -5,12 +5,12 @@ import win32com.client
 import pandas as pd
 import requests
 import config
-import schedule
-from msilib.schema import Property
 from datetime import datetime
 from log import logger
 from tendo import singleton
 from PyQt5.QtWidgets import *
+from enum import Enum, auto
+
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -205,12 +205,6 @@ class VbsTrade:
             stockPrice = StockInfo(code, stockName, openPrice, targetPrice)
             self.__stockInfoMap[code] = stockPrice
 
-        self.sendTargetPrice()
-
-        # TODO 아래 구문 삭제
-        for stockInfo in self.__stockInfoMap.items():
-            print(stockInfo)
-
     def sendTargetPrice(self):
         """종목별 코드별 매수 목표가 슬랙으로 전달"""
         messageArr = []
@@ -241,30 +235,29 @@ class VbsTrade:
             name = cpCodeMgr.CodeToName(code)
             return name, 0, 0, 0
 
-    # 목표가
     def getTargetPrice(self, code):
-        """매수 목표가를 반환한다."""
+        """시초가와 매수 목표가를 반환한다."""
         try:
             time_now = datetime.now()
             str_today = time_now.strftime("%Y%m%d")
             ohlc = self.getOhlc(code, 10)
 
-            # 다시 원위치
+            # TODO 다시 원위치
             # if str_today == str(ohlc.iloc[0].name):
-            today_open = ohlc.iloc[0].open
+            openPrice = ohlc.iloc[0].open
             lastday = ohlc.iloc[1]
             # else:
-            #     return None
+            #     return None, None
 
             lastday_high = lastday[1]
             lastday_low = lastday[2]
-            target_price = today_open + (lastday_high - lastday_low) * config.value["vbs"]["k"]
+            target_price = openPrice + (lastday_high - lastday_low) * config.value["vbs"]["k"]
 
-            printlog("{:,} + ({:,} - {:,}) * {} = {:,}".format(today_open, lastday_high, lastday_low, config.value["vbs"]["k"], target_price))
+            printlog("{:,} + ({:,} - {:,}) * {} = {:,}".format(openPrice, lastday_high, lastday_low, config.value["vbs"]["k"], target_price))
 
             # ETF는 호가 단위(5원)울 맞춰 줌
-            askPrice = int(target_price) - int(target_price) % 5
-            return today_open, askPrice
+            targetPrice = int(target_price) - int(target_price) % 5
+            return openPrice, targetPrice
 
         except Exception as ex:
             sendSlack("`getTargetPrice() -> exception! " + str(ex) + "`")
@@ -337,7 +330,6 @@ class VbsTrade:
 
             # 증거금 100% 주문 가능 금액
             cash = cpCash.GetHeaderValue(9)
-            printlog("증거금: {:,}".format(cash))
             return cash
         except Exception as ex:
             sendSlack("get_current_cash() -> exception! " + str(ex))
@@ -345,11 +337,11 @@ class VbsTrade:
 
     def sendStatus(self):
         """종목별 코드 매수 상태를 슬랙으로 전달"""
-        myCash = getCurrentCash()
+        myCash = self.getCurrentCash()
         messageArr = []
         messageArr.append("보유 현금: {:,}".format(myCash))
 
-        for stockInfo in self.__stockInfoMap:
+        for stockInfo in self.__stockInfoMap.values():
             stockName, stockQty, stockPrice, stockGain = self.getStockBalance(stockInfo.code)  # 종목명과 보유수량 조회
             if stockQty == 0:
                 messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
@@ -401,7 +393,7 @@ class VbsTrade:
             sendSlack("get_movingavrg(" + str(window) + ") -> exception! " + str(ex))
             raise ex
 
-    def isOpenMarket(self):
+    def isOpenDay(self):
         """장이 열리는 요일 판단"""
         today = datetime.today().weekday()
         # 토요일이나 일요일이면 자동 종료
@@ -410,14 +402,30 @@ class VbsTrade:
 
         return True
 
+    def isGetableOpenPrice(self):
+        """
+        당일 시초가를 얻을 수 있는지를 판단
+        시장이 열려서 목표가를 얻을 수 있는지 판단하기 위함
+        """
+        for code in self.stockCodes:
+            openPrice = self.getTargetPrice(code)
+            if openPrice == None:
+                return False
+        return True
+
 
 class TradeTask:
+    class __TradeStatus:
+        def __init__(self):
+            self.isLoadStock = False  # 매매 대상 종목 로드 여부
+
     def __init__(self):
 
         self.__stockCurList = []
         self.__isRq = False
-        self.__checkJob = None
         self.__vbsTrade = VbsTrade()
+        self.__statusCheck = False
+        self.__tradeStatus = TradeTask.__TradeStatus()
 
     def startSubscribe(self):
         """실시간 시세 조회 이벤트 등록"""
@@ -437,65 +445,85 @@ class TradeTask:
                 stockCur.Unsubscribe()
         self.__isRq = False
 
-    def registJob(self):
-        """
-        시장 오픈 여부를 확인
-        시장이 오픈하지 않으면 프로그램 종료
-
-        시장 오픈에 맞쳐 매매 시작
-        """
-        self.__checkJob = schedule.every(1).seconds.do(self.checkMarket)
-
     def checkMarket(self):
-        self.__vbsTrade.initStockInfo()
+        """
+        마켓 상태 체크
+        return True이면 프로그램 종료를 해야된다는 뜻
+        """
+        t_now = datetime.now()
+        t_9 = t_now.replace(hour=9, minute=0, second=5, microsecond=0)
+        t_start = t_now.replace(hour=9, minute=1, second=0, microsecond=0)
+        t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+        today = datetime.today().weekday()
+
+        if not self.__tradeStatus.isLoadStock:
+            self.__vbsTrade.initStockInfo()
+            self.__tradeStatus.isLoadStock = True
+
+        # TODO 아래 구문 주석 해제
+        # if not self.__vbsTrade.isOpenDay():
+        #     sendSlack("오늘은 주식 시장이 열리지 않았음")
+        #     exit()
+        # if t_sell < t_now:
+        #     self.__vbsTrade.sendStatus()
+        #     sendSlack("복슬매매 종료")
+        #     return True
+
+        if t_9 < t_now:
+            sendSlack("복슬 매매 시작")
+            if self.__vbsTrade.isGetableOpenPrice():
+                printlog("아직 시초가 얻기전")
+                return False
+            printlog("시초가 얻음")
+
+            self.__vbsTrade.initStockInfo()
+            self.__vbsTrade.sendStatus()
+            self.__statusCheck = True
 
     def exit(self):
-        if self.__checkJob != None:
-            schedule.cancel_job(self.__checkJob)
         self.stopSubscribe()
         sys.exit(0)
 
 
 if __name__ == "__main__":
-    """
-    중복실행 방지
-
-    해당 구문이 들어가면 exit() 실행시
-    AttributeError: 'NoneType' object has no attribute 'exit'
-    이런 에러가 나오면서 프로그램이 종료된다. 희한하다 ㅡㅡ;
-
-    그런데 더 이상한건 윈도우 타이틀 X 버튼을 누르면 오류메시지가 나오지 않느다. 종료하는 방식이 다르기 때문인것으로 추정된다.
-    """
+    # 중복실행 방지
     me = singleton.SingleInstance()
 
     task = TradeTask()
-    task.registJob()
     task.startSubscribe()
+    try:
+        while True:
+            if task.checkMarket():
+                break
+            time.sleep(1)
 
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    except Exception as ex:
+        sendSlack("exception! " + str(ex))
+        raise ex
 
-    # try:
-    #     # printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
-    #     # sendSlack("복슬 매매 시작")
-    #     # time.sleep(5)
+# slack message 전달 대기 wait
+time.sleep(5)
 
-    #     # print("크래온 플러스 동작:", checkCreonSystem())
+# try:
+#     # printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+#     # sendSlack("복슬 매매 시작")
+#     # time.sleep(5)
 
-    #     # targetStockCode = config.value["vbs"]["stockCode"]
+#     # print("크래온 플러스 동작:", checkCreonSystem())
 
-    #     # # 실시간 시세 조회
-    #     # for code in targetStockCode:
-    #     #     objStockCur.SetInputValue(0, code)
-    #     #     CpEvent.instance = objStockCur
-    #     #     # 하이닉스 실시간 현재가 요청
-    #     #     objStockCur.Subscribe()
-    #     # print("실시간 시세 조회 핸들러 등록")
+#     # targetStockCode = config.value["vbs"]["stockCode"]
 
-    #     a = VbsTrade()
-    #     a.initStockInfo()
+#     # # 실시간 시세 조회
+#     # for code in targetStockCode:
+#     #     objStockCur.SetInputValue(0, code)
+#     #     CpEvent.instance = objStockCur
+#     #     # 하이닉스 실시간 현재가 요청
+#     #     objStockCur.Subscribe()
+#     # print("실시간 시세 조회 핸들러 등록")
 
-    # except Exception as ex:
-    #     sendSlack("exception! " + str(ex))
-    #     raise ex
+#     a = VbsTrade()
+#     a.initStockInfo()
+
+# except Exception as ex:
+#     sendSlack("exception! " + str(ex))
+#     raise ex

@@ -3,3 +3,4 @@ __pycache__
 backtest_result
 temp/*
 *.log
+boksl-trade.log.*
