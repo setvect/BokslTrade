@@ -52,6 +52,7 @@
      pip install pywinauto
      pip install cryptography
      pip install tendo
+     pip install schedule
      ```
 4. 설정 값 입력
   - [boksl_trade/hts.py](boksl_trade/hts.py) 아이디, 비밀번호, 공동인증서 비밀번호 입력
