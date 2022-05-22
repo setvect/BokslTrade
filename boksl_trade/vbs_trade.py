@@ -9,8 +9,6 @@ from datetime import datetime
 from log import logger
 from tendo import singleton
 from PyQt5.QtWidgets import *
-from enum import Enum, auto
-
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -21,9 +19,6 @@ cpOhlc = win32com.client.Dispatch("CpSysDib.StockChart")
 cpBalance = win32com.client.Dispatch("CpTrade.CpTd6033")
 cpCash = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
 cpOrder = win32com.client.Dispatch("CpTrade.CpTd0311")
-
-# 매수요청한 종목 코드
-buyRequsetStockCode = set()
 
 
 def sendSlack(*messageArgs):
@@ -84,7 +79,7 @@ class StockInfo:
         self.__openPrice = openPrice  # 시초가
         self.__targetPrice = targetPrice  # 매수목표가
         self.__currentPrice = 0  # 현재가
-        self.__buy = False  # 매수 종목
+        self.__quantity = 0  # 보류 수량
 
     @property
     def code(self):
@@ -110,13 +105,16 @@ class StockInfo:
     def currentPrice(self, currentPrice):
         self.__currentPrice = currentPrice
 
-    @property
-    def buy(self):
-        return self.__buy
+    def isBuy(self):
+        return self.__quantity > 0
 
-    @buy.setter
-    def buy(self, buy):
-        self.__buy = buy
+    @property
+    def quantity(self):
+        return self.__quantity > 0
+
+    @quantity.setter
+    def quantity(self, quantity):
+        self.__quantity = quantity
 
     def isBuyable(self):
         """매수 해되면 True, 아니면 False"""
@@ -180,8 +178,7 @@ class VbsTrade:
             buyCash = self.getBuyCash()
 
             # 매수
-            if self.buyStock(stockInfo, buyCash):
-                stockInfo.buy = True
+            stockInfo.quantity = self.buyStock(stockInfo, buyCash)
 
             time.sleep(5)
 
@@ -200,9 +197,10 @@ class VbsTrade:
     def initStockInfo(self):
         """종목 초기 정보(시초가, 목표가) 얻기"""
         for code in self.__stockCodes:
-            stockName, stockQty, stockPrice, stockGain = self.getStockBalance(code)  # 종목명과 보유수량 조회
+            stockName, stockQuantity, stockPrice, stockGain = self.getStockBalance(code)  # 종목명과 보유수량 조회
             openPrice, targetPrice = self.getTargetPrice(code)
             stockPrice = StockInfo(code, stockName, openPrice, targetPrice)
+            stockPrice.quantity = stockQuantity
             self.__stockInfoMap[code] = stockPrice
 
     def sendTargetPrice(self):
@@ -226,11 +224,11 @@ class VbsTrade:
         for i in range(cpBalance.GetHeaderValue(7)):
             stockCode = cpBalance.GetDataValue(12, i)  # 종목코드
             name = cpBalance.GetDataValue(0, i)  # 종목명
-            qty = cpBalance.GetDataValue(15, i)  # 수량
+            quantity = cpBalance.GetDataValue(15, i)  # 수량
             price = cpBalance.GetDataValue(9, i)  # 평가금액
             gain = cpBalance.GetDataValue(11, i)  # 수익률
             if stockCode == code:
-                return name, qty, price, gain
+                return name, quantity, price, gain
         else:
             name = cpCodeMgr.CodeToName(code)
             return name, 0, 0, 0
@@ -242,12 +240,11 @@ class VbsTrade:
             str_today = time_now.strftime("%Y%m%d")
             ohlc = self.getOhlc(code, 10)
 
-            # TODO 다시 원위치
-            # if str_today == str(ohlc.iloc[0].name):
-            openPrice = ohlc.iloc[0].open
-            lastday = ohlc.iloc[1]
-            # else:
-            #     return None, None
+            if str_today == str(ohlc.iloc[0].name):
+                openPrice = ohlc.iloc[0].open
+                lastday = ohlc.iloc[1]
+            else:
+                return None, None
 
             lastday_high = lastday[1]
             lastday_low = lastday[2]
@@ -269,11 +266,12 @@ class VbsTrade:
 
             stockInfo: 매수 종목
             buyCash: 매수가격
+            return: 매수 수량
         """
         try:
 
             # 매수 수량
-            buyQty = int(buyCash // stockInfo.targetPrice)
+            buyQuantity = int(buyCash // stockInfo.targetPrice)
 
             acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
             accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
@@ -283,14 +281,14 @@ class VbsTrade:
             cpOrder.SetInputValue(1, acc)  # 계좌번호
             cpOrder.SetInputValue(2, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
             cpOrder.SetInputValue(3, stockInfo.code)  # 종목코드
-            cpOrder.SetInputValue(4, buyQty)  # 매수할 수량
+            cpOrder.SetInputValue(4, buyQuantity)  # 매수할 수량
             cpOrder.SetInputValue(5, stockInfo.targetPrice)  # 주문 단가
             cpOrder.SetInputValue(7, "0")  # 주문조건 0:기본, 1:IOC, 2:FOK
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
-            sendSlack("매수 요청 ->", stockInfo.stockName + "(" + stockInfo.code + ")", "수량: {:,}".format(buyQty),
+            sendSlack("매수 요청 ->", stockInfo.stockName + "(" + stockInfo.code + ")", "수량: {:,}".format(buyQuantity),
                       "현재가격: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(stockInfo.targetPrice),  "->", ret)
 
             rqStatus = cpOrder.GetDibStatus()
@@ -302,12 +300,60 @@ class VbsTrade:
             if rqStatus != 0:
                 raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
 
-            buy = True
-
-            return buy
+            return buyQuantity
         except Exception as ex:
             sendSlack("`매수 실패 - " + stockInfo + " -> exception! " + str(ex) + "`")
-            return False
+            return 0
+
+    def sellAllStock(self):
+        """보유 종목 전체를 매도함"""
+        for stockInfo in self.__stockInfoMap.values():
+            if stockInfo.isBuy:
+                self.__sellStock(stockInfo)
+
+        # TODO 자바에서 사용하는 stream함수 같은걸 이용하면 for문 사용안하고 아래 구문을 바꿀 수 있을 것 같다.
+        for stockInfo in self.__stockInfoMap.values():
+            if stockInfo.isBuy:
+                return False  # 전체 메도 실패
+        return True  # 전체 매도 성공
+
+    def __sellStock(self, stockInfo):
+        """보유한 모든 종목을 2틱 내려서 매도 주문를 넣는다"""
+        try:
+            cpTradeUtil.TradeInit()
+            acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
+            accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
+
+            # 매도 채결을 위해 현재가에서 10원 내려서 주문
+            sellPrice = stockInfo.currentPrice - 10
+
+            cpOrder.SetInputValue(0, "1")  # 1:매도, 2:매수
+            cpOrder.SetInputValue(1, acc)  # 계좌번호
+            cpOrder.SetInputValue(2, accFlag[0])  # 주식상품 중 첫번째
+            cpOrder.SetInputValue(3, stockInfo.code)  # 종목코드
+            cpOrder.SetInputValue(4, stockInfo.quantity)  # 매도수량
+            cpOrder.SetInputValue(5, sellPrice)  # 주문 단가
+            cpOrder.SetInputValue(7, "0")  # 조건 0:기본, 1:IOC, 2:FOK
+            cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
+            ret = cpOrder.BlockRequest()
+            sendSlack("매도 요청 ->", stockInfo.name + "(" + stockInfo.code + ")", "수량: {:,}".format(stockInfo.quantity),
+                      "매수호가: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
+
+            rqStatus = cpOrder.GetDibStatus()
+            errMsg = cpOrder.GetDibMsg1()
+            if ret != 0:
+                raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
+
+            if rqStatus != 0:
+                raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
+
+            # 100% 매도가 되었다고 가정하고, 보류 수량 0으로 셋팅
+            stockInfo.quantity = 0
+
+        except Exception as ex:
+            sendSlack("sellStock() -> exception! " + str(ex))
+            time.sleep(2)
+            raise ex
 
     def getCurrentCash(self):
         """증거금 100% 주문 가능 금액을 반환한다."""
@@ -342,19 +388,19 @@ class VbsTrade:
         messageArr.append("보유 현금: {:,}".format(myCash))
 
         for stockInfo in self.__stockInfoMap.values():
-            stockName, stockQty, stockPrice, stockGain = self.getStockBalance(stockInfo.code)  # 종목명과 보유수량 조회
-            if stockQty == 0:
-                messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQty))
+            stockName, stockQuantity, stockPrice, stockGain = self.getStockBalance(stockInfo.code)  # 종목명과 보유수량 조회
+            if stockQuantity == 0:
+                messageArr.append(stockName + ",. 현재 보유 수량: {:,}".format(stockQuantity))
             else:
-                messageArr.append(stockName + ",. 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQty, stockPrice, stockGain))
+                messageArr.append(stockName + ",. 현재 보유 수량: {:,}, 평가금액: {:,}, 수익률: {:.2f}%".format(stockQuantity, stockPrice, stockGain))
 
         sendSlack("\n".join(messageArr))
 
-    def getOhlc(self, code, qty):
-        """인자로 받은 종목의 OHLC 가격 정보를 qty 개수만큼 반환한다."""
+    def getOhlc(self, code, quantity):
+        """인자로 받은 종목의 OHLC 가격 정보를 quantity 개수만큼 반환한다."""
         cpOhlc.SetInputValue(0, code)  # 종목코드
         cpOhlc.SetInputValue(1, ord("2"))  # 1:기간, 2:개수
-        cpOhlc.SetInputValue(4, qty)  # 요청개수
+        cpOhlc.SetInputValue(4, quantity)  # 요청개수
         cpOhlc.SetInputValue(5, [0, 2, 3, 4, 5])  # 0:날짜, 2~5:OHLC
         cpOhlc.SetInputValue(6, ord("D"))  # D:일단위
         cpOhlc.SetInputValue(9, ord("1"))  # 0:무수정주가, 1:수정주가
@@ -420,6 +466,8 @@ class TradeTask:
             self.isLoadStock = False  # 매매 대상 종목 로드 여부
             self.isLoadOpenPrice = False  # 시초가 얻음, 오늘 장이 시작되었다는 뜻
             self.isLoadTargetPrice = False  # 목표가 없음
+            self.isSell = False  # 매도 상태
+            self.isRegistSubscribe = False  # 실시간 조회 이벤트 등록
 
     def __init__(self):
 
@@ -449,31 +497,29 @@ class TradeTask:
     def checkMarket(self):
         """
         마켓 상태 체크
-        return True이면 프로그램 종료를 해야된다는 뜻
+        return False이면 프로그램 종료를 해야된다는 뜻
         """
-        t_now = datetime.now()
-        t_9 = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
-        t_start = t_now.replace(hour=9, minute=5, second=0, microsecond=0)
-        t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
-        today = datetime.today().weekday()
+        timeNow = datetime.now()
+        timeOpen = timeNow.replace(hour=9, minute=0, second=0, microsecond=0)
+        timeSellStart = timeNow.replace(hour=9, minute=5, second=0, microsecond=0)
+        timeSellEnd = timeNow.replace(hour=9, minute=5, second=20, microsecond=0)
+        timeTradeEnd = timeNow.replace(hour=15, minute=20, second=0, microsecond=0)
 
         if not self.__tradeStatus.isLoadStock:
             self.__vbsTrade.initStockInfo()
             self.__tradeStatus.isLoadStock = True
 
-        # TODO 아래 구문 주석 해제
-        # if not self.__vbsTrade.isOpenDay():
-        #     sendSlack("오늘은 주식 시장이 열리지 않았음")
-        #     exit()
-        # if t_sell < t_now:
-        #     self.__vbsTrade.sendStatus()
-        #     sendSlack("복슬매매 종료")
-        #     return True
+        if not self.__vbsTrade.isOpenDay():
+            sendSlack("오늘은 주식 시장이 열리지 않았음")
+            return False
+        if timeSellEnd < timeNow:
+            self.__vbsTrade.sendStatus()
+            sendSlack("복슬매매 종료")
+            return False
 
-        if t_9 < t_now and self.__tradeStatus.isLoadOpenPrice:
+        if timeOpen < timeNow and self.__tradeStatus.isLoadOpenPrice:
             if self.__vbsTrade.isGetableOpenPrice():
                 printlog("아직 시초가 얻기전")
-                return False
 
             self.__tradeStatus.isLoadOpenPrice = True
             printlog("시초가 얻음")
@@ -484,9 +530,14 @@ class TradeTask:
             self.__tradeStatus.isLoadTargetPrice = True
             printlog("목표가 없음 얻음")
 
-    def exit(self):
-        self.stopSubscribe()
-        sys.exit(0)
+        elif timeSellStart < timeNow < timeSellEnd and not self.__tradeStatus.isSell:
+            self.__tradeStatus.isSell = self.__vbsTrade.sellAllStock()
+
+        elif timeSellEnd < timeNow < timeTradeEnd and not self.__tradeStatus.isRegist:
+            self.startSubscribe()
+            printlog("실시간 시세 조회 이벤트 등록")
+
+        return True
 
 
 if __name__ == "__main__":
@@ -503,7 +554,7 @@ if __name__ == "__main__":
     task.startSubscribe()
     try:
         while True:
-            if task.checkMarket():
+            if not task.checkMarket():
                 break
             time.sleep(1)
 
