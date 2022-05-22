@@ -164,15 +164,15 @@ class VbsTrade:
         cVol = VbsTrade.instance.GetHeaderValue(17)  # 순간체결수량
         vol = VbsTrade.instance.GetHeaderValue(9)  # 거래량
 
+        # TODO 아래 구문 삭제
+        print("실시간(장중 체결)", name + "[" + code + "]", timess, cprice, "대비", diff, "체결량", cVol, "거래량", vol)
+
         # 장중(체결)가가 아니면 무시
         if (exFlag != ord('2')):  # 동시호가 시간 (예상체결)
             return
 
         stockInfo = self.__stockInfoMap[code]
         stockInfo.currentPrice = cprice
-
-        # TODO 아래 구문 삭제
-        print("실시간(장중 체결)", timess, cprice, "대비", diff, "체결량", cVol, "거래량", vol)
 
         if stockInfo.isBuyable():
             buyCash = self.getBuyCash()
@@ -287,18 +287,19 @@ class VbsTrade:
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
 
             # 매수 주문 요청
-            ret = cpOrder.BlockRequest()
-            sendSlack("매수 요청 ->", stockInfo.stockName + "(" + stockInfo.code + ")", "수량: {:,}".format(buyQuantity),
-                      "현재가격: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(stockInfo.targetPrice),  "->", ret)
+            # TODO 테스트를 위해 실재 매도를 발생하지 않게 하였음. 테스트 종료후 주석 제거
+            # ret = cpOrder.BlockRequest()
+            # sendSlack("매수 요청 ->", stockInfo.stockName + "(" + stockInfo.code + ")", "수량: {:,}".format(buyQuantity),
+            #           "현재가격: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(stockInfo.targetPrice),  "->", ret)
 
-            rqStatus = cpOrder.GetDibStatus()
-            errMsg = cpOrder.GetDibMsg1()
+            # rqStatus = cpOrder.GetDibStatus()
+            # errMsg = cpOrder.GetDibMsg1()
 
-            if ret != 0:
-                raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
+            # if ret != 0:
+            #     raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
 
-            if rqStatus != 0:
-                raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
+            # if rqStatus != 0:
+            #     raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
 
             return buyQuantity
         except Exception as ex:
@@ -335,20 +336,22 @@ class VbsTrade:
             cpOrder.SetInputValue(5, sellPrice)  # 주문 단가
             cpOrder.SetInputValue(7, "0")  # 조건 0:기본, 1:IOC, 2:FOK
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
-            ret = cpOrder.BlockRequest()
-            sendSlack("매도 요청 ->", stockInfo.name + "(" + stockInfo.code + ")", "수량: {:,}".format(stockInfo.quantity),
-                      "매수호가: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
 
-            rqStatus = cpOrder.GetDibStatus()
-            errMsg = cpOrder.GetDibMsg1()
-            if ret != 0:
-                raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
+            # TODO 테스트를 위해 실재 매도를 발생하지 않게 하였음. 테스트 종료후 주석 제거
+            # ret = cpOrder.BlockRequest()
+            # sendSlack("매도 요청 ->", stockInfo.name + "(" + stockInfo.code + ")", "수량: {:,}".format(stockInfo.quantity),
+            #           "매수호가: {:,}".format(stockInfo.currentPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
 
-            if rqStatus != 0:
-                raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
+            # rqStatus = cpOrder.GetDibStatus()
+            # errMsg = cpOrder.GetDibMsg1()
+            # if ret != 0:
+            #     raise Exception("주문요청 오류: " + str(ret) + " " + errMsg)
 
-            # 100% 매도가 되었다고 가정하고, 보류 수량 0으로 셋팅
-            stockInfo.quantity = 0
+            # if rqStatus != 0:
+            #     raise Exception("주문 실패: " + str(rqStatus) + " " + errMsg)
+
+            # # 100% 매도가 되었다고 가정하고, 보류 수량 0으로 셋팅
+            # stockInfo.quantity = 0
 
         except Exception as ex:
             sendSlack("sellStock() -> exception! " + str(ex))
