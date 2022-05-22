@@ -198,7 +198,7 @@ class VbsTrade:
         return buyCash
 
     def initStockInfo(self):
-        """종목 초기 정보 얻기"""
+        """종목 초기 정보(시초가, 목표가) 얻기"""
         for code in self.__stockCodes:
             stockName, stockQty, stockPrice, stockGain = self.getStockBalance(code)  # 종목명과 보유수량 조회
             openPrice, targetPrice = self.getTargetPrice(code)
@@ -211,7 +211,7 @@ class VbsTrade:
         for stockInfo in self.__stockInfoMap.values():
             messageArr.append(stockInfo.name + ", 시초가: {:,}, 매수 목표가: {:,}".format(stockInfo.openPrice, stockInfo.targetPrice))
 
-        sendSlack("\n".join(messageArr))
+        sendSlack("\n" + "\n".join(messageArr))
 
     def getStockBalance(self, code):
         """인자로 받은 종목의 종목명, 수량, 평가금액, 수익률을 반환한다."""
@@ -418,13 +418,14 @@ class TradeTask:
     class __TradeStatus:
         def __init__(self):
             self.isLoadStock = False  # 매매 대상 종목 로드 여부
+            self.isLoadOpenPrice = False  # 시초가 얻음, 오늘 장이 시작되었다는 뜻
+            self.isLoadTargetPrice = False  # 목표가 없음
 
     def __init__(self):
 
         self.__stockCurList = []
         self.__isRq = False
         self.__vbsTrade = VbsTrade()
-        self.__statusCheck = False
         self.__tradeStatus = TradeTask.__TradeStatus()
 
     def startSubscribe(self):
@@ -451,8 +452,8 @@ class TradeTask:
         return True이면 프로그램 종료를 해야된다는 뜻
         """
         t_now = datetime.now()
-        t_9 = t_now.replace(hour=9, minute=0, second=5, microsecond=0)
-        t_start = t_now.replace(hour=9, minute=1, second=0, microsecond=0)
+        t_9 = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
+        t_start = t_now.replace(hour=9, minute=5, second=0, microsecond=0)
         t_sell = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
         today = datetime.today().weekday()
 
@@ -469,16 +470,19 @@ class TradeTask:
         #     sendSlack("복슬매매 종료")
         #     return True
 
-        if t_9 < t_now:
-            sendSlack("복슬 매매 시작")
+        if t_9 < t_now and self.__tradeStatus.isLoadOpenPrice:
             if self.__vbsTrade.isGetableOpenPrice():
                 printlog("아직 시초가 얻기전")
                 return False
+
+            self.__tradeStatus.isLoadOpenPrice = True
             printlog("시초가 얻음")
 
+        elif not self.__tradeStatus.isLoadTargetPrice:
             self.__vbsTrade.initStockInfo()
-            self.__vbsTrade.sendStatus()
-            self.__statusCheck = True
+            self.__vbsTrade.sendTargetPrice()
+            self.__tradeStatus.isLoadTargetPrice = True
+            printlog("목표가 없음 얻음")
 
     def exit(self):
         self.stopSubscribe()
@@ -488,6 +492,12 @@ class TradeTask:
 if __name__ == "__main__":
     # 중복실행 방지
     me = singleton.SingleInstance()
+
+    printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+    sendSlack("복슬 매매 시작")
+    time.sleep(3)
+
+    print("크래온 플러스 동작:", checkCreonSystem())
 
     task = TradeTask()
     task.startSubscribe()
