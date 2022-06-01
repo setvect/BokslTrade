@@ -9,6 +9,7 @@ from datetime import datetime
 from log import logger
 from tendo import singleton
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
 
 # 크레온 플러스 공통 OBJECT
 cpCodeMgr = win32com.client.Dispatch("CpUtil.CpStockCode")
@@ -219,7 +220,10 @@ class VbsTrade:
         cpBalance.SetInputValue(0, acc)  # 계좌번호
         cpBalance.SetInputValue(1, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
         cpBalance.SetInputValue(2, 50)  # 요청 건수(최대 50)
-        cpBalance.BlockRequest()
+
+        #################
+        cpBalance.BlockRequest()  # TODO 요기서 멈춤. 원인 파악 필요 ★★★★★★★★
+        #################
 
         for i in range(cpBalance.GetHeaderValue(7)):
             stockCode = cpBalance.GetDataValue(12, i)  # 종목코드
@@ -515,7 +519,7 @@ class TradeTask:
         if not self.__vbsTrade.isOpenDay():
             sendSlack("오늘은 주식 시장이 열리지 않았음")
             return False
-        if timeSellEnd < timeNow:
+        if timeTradeEnd < timeNow:
             self.__vbsTrade.sendStatus()
             sendSlack("복슬매매 종료")
             return False
@@ -536,58 +540,61 @@ class TradeTask:
         elif timeSellStart < timeNow < timeSellEnd and not self.__tradeStatus.isSell:
             self.__tradeStatus.isSell = self.__vbsTrade.sellAllStock()
 
-        elif timeSellEnd < timeNow < timeTradeEnd and not self.__tradeStatus.isRegist:
+        elif timeSellEnd < timeNow < timeTradeEnd and not self.__tradeStatus.isRegistSubscribe:
             self.startSubscribe()
+            self.__tradeStatus.isRegistSubscribe = True
             printlog("실시간 시세 조회 이벤트 등록")
 
         return True
+
+
+class TaskChecker(QThread):
+    def __init__(self, args, name=""):
+        super().__init__()
+        self.window = args[0]
+        self.task = args[1]
+
+    def run(self):
+        try:
+            while True:
+                if not self.task.checkMarket():
+                    break
+                time.sleep(1)
+
+        except Exception as ex:
+            sendSlack("exception! " + str(ex))
+            raise ex
+
+
+class BokslTrade(QMainWindow):
+
+    def __init__(self):
+        super().__init__()
+
+        task = TradeTask()
+        task.startSubscribe()
+        t1 = TaskChecker(args=(self, task))
+        t1.start()
+
+        self.setWindowTitle("복슬매매")
+        self.setGeometry(500, 500, 500, 250)
+
+        printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
+        sendSlack("복슬 매매 시작")
+        time.sleep(1)
+
+        print("크래온 플러스 동작:", checkCreonSystem())
 
 
 if __name__ == "__main__":
     # 중복실행 방지
     me = singleton.SingleInstance()
 
-    printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
-    sendSlack("복슬 매매 시작")
-    time.sleep(3)
+    app = QApplication(sys.argv)
+    myWindow = BokslTrade()
+    myWindow.show()
+    app.exec_()
 
-    print("크래온 플러스 동작:", checkCreonSystem())
-
-    task = TradeTask()
-    task.startSubscribe()
-    try:
-        while True:
-            if not task.checkMarket():
-                break
-            time.sleep(1)
-
-    except Exception as ex:
-        sendSlack("exception! " + str(ex))
-        raise ex
 
 # slack message 전달 대기 wait
-time.sleep(5)
-
-# try:
-#     # printlog("시작 시간 :", datetime.now().strftime("%m/%d %H:%M:%S"))
-#     # sendSlack("복슬 매매 시작")
-#     # time.sleep(5)
-
-#     # print("크래온 플러스 동작:", checkCreonSystem())
-
-#     # targetStockCode = config.value["vbs"]["stockCode"]
-
-#     # # 실시간 시세 조회
-#     # for code in targetStockCode:
-#     #     objStockCur.SetInputValue(0, code)
-#     #     CpEvent.instance = objStockCur
-#     #     # 하이닉스 실시간 현재가 요청
-#     #     objStockCur.Subscribe()
-#     # print("실시간 시세 조회 핸들러 등록")
-
-#     a = VbsTrade()
-#     a.initStockInfo()
-
-# except Exception as ex:
-#     sendSlack("exception! " + str(ex))
-#     raise ex
+# time.sleep(5)
