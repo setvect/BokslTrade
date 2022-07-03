@@ -3,6 +3,7 @@ import time
 import win32com.client
 import pandas as pd
 import requests
+import sys
 from datetime import datetime
 import config
 from log import logger
@@ -182,14 +183,14 @@ def getTargetPrice(code):
         raise ex
 
 
-def sendStatus(codeList):
+def sendStatus(stockCodeList):
     """종목별 코드 매수 상태를 슬랙으로 전달"""
     myCash = getCurrentCash()
     messageArr = []
     messageArr.append("보유 현금: {:,}".format(myCash))
 
-    for code in codeList:
-        stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
+    for stockCode in stockCodeList:
+        stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
         if stockQty == 0:
             messageArr.append(stockName + ", 현재 보유 수량: {:,}".format(stockQty))
         else:
@@ -198,63 +199,63 @@ def sendStatus(codeList):
     sendSlack("\n".join(messageArr))
 
 
-def sendTargetPrice(codeList):
+def sendTargetPrice(stockCodeList):
     """종목별 코드별 매수 목표가 슬랙으로 전달"""
     messageArr = []
-    for code in codeList:
-        stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
-        targetPrice = getTargetPrice(code)  # 매수 목표가
+    for stockCode in stockCodeList:
+        stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
+        targetPrice = getTargetPrice(stockCode["code"])  # 매수 목표가
         if targetPrice is None:
             messageArr.append(stockName + ", 시장이 열리지 않았음")
         else:
-            ohlc = getOhlc(code, 10)
+            ohlc = getOhlc(stockCode["code"], 10)
             today_open = ohlc.iloc[0].open
             messageArr.append(stockName + ", 시초가: {:,}, 매수 목표가: {:,}".format(today_open, targetPrice))
 
     sendSlack("\n".join(messageArr))
 
 
-def buyStock(codeList, myCash):
+def buyStock(stockCodeList, myCash):
     """인자로 받은 종목을 매수한다."""
     try:
         buy = False
         buyStockCount = 0
-        for code in codeList:
-            stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
+        for stockCode in stockCodeList:
+            stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
             if stockQty != 0:
                 buyStockCount += 1
 
-        buyRate = ((buyStockCount + 1) / len(codeList)) * config.value["vbs"]["investRate"]
+        buyRate = ((buyStockCount + 1) / len(stockCodeList)) * config.value["vbs"]["investRate"]
         # 종목당 매수 제한 금액
         buyCash = myCash * buyRate
 
-        for code in codeList:
-            if code in buyRequsetStockCode:
-                printlog("매수 요청 종목:", code)
+        for stockCode in stockCodeList:
+            if stockCode in buyRequsetStockCode:
+                printlog("매수 요청 종목:", stockCode["code"])
                 continue
 
             # TODO 상태가 변경될 때만 요청하도록 변경
-            stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
+            stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
 
             if stockQty != 0:
                 printlog("매수 물량 존재:", stockName, str(stockQty))
                 continue
 
-            targetPrice = getTargetPrice(code)  # 매수 목표가
+            targetPrice = getTargetPrice(stockCode["code"])  # 매수 목표가
             if targetPrice is None:
                 printlog("시장 열리지 않음")
                 continue
 
-            currentPrice, askPrice, bidPrice = getCurrentPrice(code)
+            currentPrice, askPrice, bidPrice = getCurrentPrice(stockCode["code"])
             # 목표가를 돌파했을 경우 매수
             if currentPrice < targetPrice:
-                printlog("목표가 돌파 못함 ", stockName + "(" + code + ")", "현재가: {:,}".format(currentPrice), "목표가: {:,}".format(targetPrice))
+                printlog("목표가 돌파 못함 ", stockName + "(" + stockCode["code"] + ")", "현재가: {:,}".format(currentPrice), "목표가: {:,}".format(targetPrice))
                 continue
 
             # 매수 수량
             buyQty = int(buyCash // targetPrice)
 
-            printlog("매수 주문", stockName + "(" + str(code) + "), 수량:" + str(buyQty) + ", 가격: " + str(targetPrice))
+            printlog("매수 주문", stockName + "(" + str(stockCode["code"]) + "), 수량:" + str(buyQty) + ", 가격: " + str(targetPrice))
             cpTradeUtil.TradeInit()
             acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
             accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체,1:주식,2:선물/옵션
@@ -267,7 +268,7 @@ def buyStock(codeList, myCash):
             cpOrder.SetInputValue(0, "2")  # 2: 매수
             cpOrder.SetInputValue(1, acc)  # 계좌번호
             cpOrder.SetInputValue(2, accFlag[0])  # 상품구분 - 주식 상품 중 첫번째
-            cpOrder.SetInputValue(3, code)  # 종목코드
+            cpOrder.SetInputValue(3, stockCode["code"])  # 종목코드
             cpOrder.SetInputValue(4, buyQty)  # 매수할 수량
             cpOrder.SetInputValue(5, buyPrice)  # 주문 단가
             cpOrder.SetInputValue(7, "0")  # 주문조건 0:기본, 1:IOC, 2:FOK
@@ -275,7 +276,7 @@ def buyStock(codeList, myCash):
 
             # 매수 주문 요청
             ret = cpOrder.BlockRequest()
-            sendSlack("매수 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
+            sendSlack("매수 요청 ->", stockName + "(" + stockCode["code"] + ")", "수량: {:,}".format(buyQty), "매도호가: {:,}".format(askPrice), "주문가격: {:,}".format(buyPrice),  "->", ret)
 
             rqStatus = cpOrder.GetDibStatus()
             errMsg = cpOrder.GetDibMsg1()
@@ -289,40 +290,45 @@ def buyStock(codeList, myCash):
             buy = True
             time.sleep(2)
 
-            buyRequsetStockCode.add(code)
+            buyRequsetStockCode.add(stockCode["code"])
         return buy
     except Exception as ex:
-        sendSlack("`buyStock(" + str(codeList) + ") -> exception! " + str(ex) + "`")
+        sendSlack("`buyStock(" + str(stockCodeList) + ") -> exception! " + str(ex) + "`")
         time.sleep(2)
         return False
 
 
-def sellStock(codeList):
-    """보유한 모든 종목을 최유리 지정가 IOC 조건으로 매도한다."""
+def sellStocks(stockCodeList, firstSell):
+    """보유한 종목을 (거래가 - 15원) 조건으로 매도한다."""
     try:
-        cpTradeUtil.TradeInit()
-        acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
-        accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
+        for stockCode in stockCodeList:
+            # 해당 종목이 시초가 매도 인지 판단
+            if firstSell == True and stockCode["firstSale"] == False:
+                continue
+            if firstSell == False and stockCode["firstSale"] == True:
+                continue
 
-        for code in codeList:
-            stockName, stockQty, stockPrice, stockGain = getStockBalance(code)  # 종목명과 보유수량 조회
+            stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
             if stockQty == 0:
                 continue
 
-            currentPrice, askPrice, bidPrice = getCurrentPrice(code)
+            currentPrice, askPrice, bidPrice = getCurrentPrice(stockCode["code"])
 
-            # 매도 채결을 위해 매수 호가 10원 내려서 주문
-            sellPrice = bidPrice - 10
+            # 매도 채결을 위해 매수 호가 15원 내려서 주문
+            sellPrice = bidPrice - 15
+            cpTradeUtil.TradeInit()
+            acc = cpTradeUtil.AccountNumber[0]  # 계좌번호
+            accFlag = cpTradeUtil.GoodsList(acc, 1)  # -1:전체, 1:주식, 2:선물/옵션
             cpOrder.SetInputValue(0, "1")  # 1:매도, 2:매수
             cpOrder.SetInputValue(1, acc)  # 계좌번호
             cpOrder.SetInputValue(2, accFlag[0])  # 주식상품 중 첫번째
-            cpOrder.SetInputValue(3, code)  # 종목코드
+            cpOrder.SetInputValue(3, stockCode["code"])  # 종목코드
             cpOrder.SetInputValue(4, stockQty)  # 매도수량
             cpOrder.SetInputValue(5, sellPrice)  # 주문 단가
             cpOrder.SetInputValue(7, "0")  # 조건 0:기본, 1:IOC, 2:FOK
             cpOrder.SetInputValue(8, "01")  # 주문호가 01:지정가, 03:시장가, 5:조건부, 12:최유리, 13:최우선
             ret = cpOrder.BlockRequest()
-            sendSlack("매도 요청 ->", stockName + "(" + code + ")", "수량: {:,}".format(stockQty), "매수호가: {:,}".format(bidPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
+            sendSlack("매도 요청 ->", stockName + "(" + stockCode["code"] + ")", "수량: {:,}".format(stockQty), "매수호가: {:,}".format(bidPrice), "주문가격: {:,}".format(sellPrice),  "결과:", ret)
 
             rqStatus = cpOrder.GetDibStatus()
             errMsg = cpOrder.GetDibMsg1()
@@ -383,37 +389,47 @@ if __name__ == "__main__":
 
         statusCheck = False
         targetPriceCheck = False
-        wakeSend = False
+        firstSell = False
         myCash = 0
         sendStatus(targetStockCode)
 
+        if not isOpenMarket():
+            sendSlack("오늘은 주식 시장이 열리지 않았음")
+            sys.exit(0)
+
         while True:
             t_now = datetime.now()
-            t_9 = t_now.replace(hour=9, minute=5, second=5, microsecond=0)
-            t_start = t_now.replace(hour=9, minute=5, second=10, microsecond=0)
+            # 시초가 매도
+            t_sellStart1 = t_now.replace(hour=8, minute=59, second=30, microsecond=0)
+            # 장 시작
+            t_open = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
+            # 9시 5분 매도 시간
+            t_sellStart2 = t_now.replace(hour=9, minute=5, second=5, microsecond=0)
+            # 매수 시간
+            t_buyStart = t_now.replace(hour=9, minute=5, second=10, microsecond=0)
             t_buy = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
             today = datetime.today().weekday()
 
-            if not isOpenMarket():
-                sendSlack("오늘은 주식 시장이 열리지 않았음")
-                break
-
-            if not wakeSend:
-                wakeSend = True
+            if (t_sellStart1 < t_now < t_open) and not firstSell:
+                #  시초가 매도 종목 매도
+                sellStocks(targetStockCode, True)
+                firstSell = True
+                myCash = 0
                 continue
 
-            if(t_9 < t_now and not statusCheck):
-                targetPrice = getTargetPrice(targetStockCode[0])
+            # TODO 호가 여부로 변경
+            if(t_sellStart2 < t_now and not statusCheck):
+                targetPrice = getTargetPrice(targetStockCode[0]["code"])
                 if targetPrice is None:
                     sendSlack("오늘은 주식 시장이 열리지 않았음")
                     break
                 statusCheck = True
 
-            if t_9 < t_now < t_start:
-                #  시초가 매도 보유 물량 매도
-                sellStock(targetStockCode)
+            if t_sellStart2 < t_now < t_buyStart:
+                #  9시 5분 매도 종목 매도
+                sellStocks(targetStockCode, False)
                 myCash = 0
-            elif t_start < t_now < t_buy:
+            elif t_buyStart < t_now < t_buy:
                 if not targetPriceCheck:
                     sendTargetPrice(targetStockCode)
                     targetPriceCheck = True

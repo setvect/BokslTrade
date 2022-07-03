@@ -29,7 +29,11 @@ value = {
         # A233740 - KODEX 코스닥150 레버리지
         # A069500 - KODEX 200
         # A229200 - KODEX 코스닥 150
-        "stockCode": ["A122630", "A233740"],
+        # A091170  - KODEX 은행,
+        "stockCode": [
+            {"code": "A233740", "firstSale": False},
+            {"code": "A091170", "firstSale": True}
+        ],
         # "stockCode": ["A069500", "A229200"],
     }
 }
