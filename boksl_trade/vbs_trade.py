@@ -400,7 +400,7 @@ if __name__ == "__main__":
         while True:
             t_now = datetime.now()
             # 시초가 매도
-            t_sellStart1 = t_now.replace(hour=8, minute=59, second=30, microsecond=0)
+            t_sellStart1 = t_now.replace(hour=8, minute=59, second=55, microsecond=0)
             # 장 시작
             t_open = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
             # 9시 5분 매도 시간
