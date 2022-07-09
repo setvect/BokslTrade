@@ -230,7 +230,7 @@ def buyStock(stockCodeList, myCash):
         buyCash = myCash * buyRate
 
         for stockCode in stockCodeList:
-            if stockCode in buyRequsetStockCode:
+            if stockCode["code"] in buyRequsetStockCode:
                 printlog("매수 요청 종목:", stockCode["code"])
                 continue
 
