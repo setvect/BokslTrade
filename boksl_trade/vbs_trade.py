@@ -210,9 +210,9 @@ def sendTargetPrice(stockCodeList):
         else:
             ohlc = getOhlc(stockCode["code"], 10)
             today_open = ohlc.iloc[0].open
-            messageArr.append(stockName + ", 시초가: {:,}, 매수 목표가: {:,}".format(today_open, targetPrice))
+            messageArr.append(stockName + "\n   - 시초가: {:,}\n   - 매수 목표가: {:,}".format(today_open, targetPrice))
 
-    sendSlack("\n--------------\n" + "\n".join(messageArr))
+    sendSlack("\n" + "\n".join(messageArr))
 
 
 def buyStock(stockCodeList, myCash):
