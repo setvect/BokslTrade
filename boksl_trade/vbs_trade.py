@@ -222,7 +222,7 @@ def buyStock(stockCodeList, myCash):
         buyStockCount = 0
         for stockCode in stockCodeList:
             stockName, stockQty, stockPrice, stockGain = getStockBalance(stockCode["code"])  # 종목명과 보유수량 조회
-            if stockQty != 0 or stockCode in buyRequsetStockCode:
+            if stockQty != 0 or stockCode["code"] in buyRequsetStockCode:
                 buyStockCount += 1
 
         buyRate = ((buyStockCount + 1) / len(stockCodeList)) * config.value["vbs"]["investRate"]
