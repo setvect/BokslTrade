@@ -146,6 +146,10 @@
   ```
 
 ### 1.2.4. 시세 클로링 데이터
+크롤링 실행
+```sh
+python boksl_trade/backtest/crawling.py
+```
 #### 1.2.4.1. 1분봉 2019.6.25 ~ 2021.6.24
 - `data/1_minute/A069500.csv`: KODEX 200
 - `data/1_minute/A114800.csv`: KODEX 레버리지

@@ -2,6 +2,7 @@ import csv
 import win32com.client
 import datetime
 import time
+import os
 
 fieldNames = ["date", "time", "open", "high", "low", "close", "volume"]
 
@@ -61,18 +62,23 @@ objStockMst = win32com.client.Dispatch("CpSysDib.StockChart")
 # A091170: KODEX 은행
 # stockCodes = ["A069500", "A122630", "A114800", "A252670"]
 # stockCodes = ["A233740", "A091170"]
-stockCodes = ["A091170"]
-
+stockCodes = ["A091170", "A233740"]
 
 # marketPrice = getMarketPrice(objStockMst, "A069500", "20200706", "20200706")
 # for item in marketPrice:
 #     print(item.values())
 
-for code in stockCodes:
-    toDate = datetime.datetime.now()
-    fromDate = toDate - datetime.timedelta(days=365 * 5 + 50)
+toDate = datetime.datetime.now()
+dirName = "./data/5_minute_" + toDate.strftime("%Y%m%d") + "/"
+if not os.path.exists(dirName):
+    os.makedirs(dirName)
+    print(f"디렉토리 만듦 '{dirName}'")
 
-    with open("./data/5_minute_new/" + code + ".csv", "w", newline="") as f:
+for code in stockCodes:
+    # fromDate = toDate - datetime.timedelta(days=365 * 5 + 50)
+    fromDate = datetime.datetime(2023, 1, 7)
+
+    with open(dirName + code + ".csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(fieldNames)
 
